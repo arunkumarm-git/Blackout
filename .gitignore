@@ -1,0 +1,9 @@
+# Dev / editor files
+blackout_Mouckup_UI.html
+.agents/
+*.log
+*.DS_Store
+Thumbs.db
+
+# Node (if ever used for tooling)
+node_modules/

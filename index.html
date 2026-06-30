@@ -1,0 +1,2880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>BLACKOUT — Audio-Driven Survival Horror Game</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- SEO -->
+<meta name="description" content="A pitch-black browser horror game. No visuals — only sound. Track a ghost using binaural audio, UV footprints, EMF geiger readings, and sonar pings. Can you survive the dark?">
+<meta name="keywords" content="horror game, audio game, survival horror, browser game, HTML5 game, ghost game, blackout">
+<meta name="author" content="arunkumarm-git">
+<meta name="robots" content="index, follow">
+
+<!-- Open Graph (Facebook, Discord, WhatsApp) -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="BLACKOUT — Audio-Driven Survival Horror">
+<meta property="og:description" content="A pitch-black browser horror game. No visuals — only sound. Track a ghost using binaural audio, UV footprints, EMF readings and sonar. Can you survive the dark?">
+<meta property="og:image" content="https://arunkumarm-git.github.io/Blackout/assets/images/Ghost.png">
+<meta property="og:url" content="https://arunkumarm-git.github.io/Blackout/">
+<meta property="og:site_name" content="BLACKOUT">
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="BLACKOUT — Audio-Driven Survival Horror">
+<meta name="twitter:description" content="A pitch-black horror game. No visuals. Only sound. Track the ghost or die trying.">
+<meta name="twitter:image" content="https://arunkumarm-git.github.io/Blackout/assets/images/Ghost.png">
+
+<!-- Favicon -->
+<link rel="icon" type="image/png" href="assets/images/Ghost.png">
+<link rel="apple-touch-icon" href="assets/images/Ghost.png">
+
+<!-- CrazyGames SDK (for CrazyGames.com publishing) -->
+<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Eater&family=Cormorant+Garamond:ital@1&family=Special+Elite&display=swap');
+
+  :root {
+    --void: #020102;
+    --void-2: #070507;
+    --amber: #ffb347;
+    --amber-hot: #ffd98c;
+    --amber-dim: #5a3f1c;
+    --reveal: #dceeff;
+    --blood: #5c0a0a;
+    --blood-bright: #b3151a;
+    --blood-hot: #e8341f;
+    --ink: #e8e2d6;
+    --ink-dim: #6e685e;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0; width: 100%; height: 100%;
+    background: var(--void);
+    overflow: hidden;
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    cursor: none;
+  }
+
+  #stage {
+    position: relative; width: 100vw; height: 100vh;
+    background: radial-gradient(circle at 50% 50%, var(--void-2) 0%, var(--void) 90%);
+    overflow: hidden;
+  }
+
+  #grain {
+    position: absolute; inset: 0; pointer-events: none; opacity: 0.08; mix-blend-mode: overlay; z-index: 28;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.95' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+
+  #vignette {
+    position: absolute; inset: 0; pointer-events: none; z-index: 27;
+    box-shadow: inset 0 0 250px 100px rgba(0,0,0,0.98);
+    transition: box-shadow 0.3s ease;
+  }
+
+  /* Vignette Pulse Keyframes */
+  @keyframes heartbeat-pulse {
+    0% { box-shadow: inset 0 0 250px 100px rgba(0,0,0,0.98); }
+    15% { box-shadow: inset 0 0 280px 140px rgba(25, 0, 0, 0.99); }
+    100% { box-shadow: inset 0 0 250px 100px rgba(0,0,0,0.98); }
+  }
+
+  .pulse-active {
+    animation: heartbeat-pulse 0.4s ease-out;
+  }
+
+  #shake { position: absolute; inset: 0; }
+  .shaking { animation: shake 0.6s cubic-bezier(.36,.07,.19,.97) both; }
+  @keyframes shake {
+    10%, 90% { transform: translate3d(-3px, 2px, 0); }
+    20%, 80% { transform: translate3d(5px, -3px, 0); }
+    30%, 50%, 70% { transform: translate3d(-9px, 4px, 0) rotate(-0.8deg); }
+    40%, 60% { transform: translate3d(9px, -4px, 0) rotate(0.8deg); }
+  }
+
+  /* ---------- TOP HUD ---------- */
+  .hud-top {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 26px 34px; z-index: 45;
+    opacity: 1; transition: opacity 2s ease;
+  }
+  .hud-top.fade-out {
+    opacity: 0.15;
+  }
+  .hud-top:hover {
+    opacity: 1;
+  }
+
+  .charges { display: flex; gap: 10px; align-items: center; }
+  .charges-label { font-size: 10px; letter-spacing: 0.18em; color: var(--ink-dim); margin-right: 8px; text-transform: uppercase; }
+  .bulb { width: 13px; height: 18px; border: 1.5px solid var(--amber-dim); border-radius: 60% 60% 40% 40%; position: relative; transition: all .25s ease; background: transparent; }
+  .bulb.lit { border-color: var(--amber); background: radial-gradient(circle at 50% 35%, var(--amber-hot), var(--amber) 70%); box-shadow: 0 0 10px 1px rgba(255,179,71,0.6); }
+  .bulb.spent { border-color: #2a2622; background: #0c0a08; }
+
+  .clock-wrap { text-align: right; }
+  .clock-label { font-size: 10px; letter-spacing: 0.18em; color: var(--ink-dim); text-transform: uppercase; margin-bottom: 6px; }
+  .clock-bar { width: 180px; height: 4px; background: #1c1414; position: relative; overflow: visible; transition: box-shadow 0.5s ease; }
+  .clock-fill { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, var(--amber-dim), var(--amber)); width: 100%; transition: width 0.5s linear, background 0.6s ease; }
+  .clock-bar.danger .clock-fill { background: linear-gradient(90deg, #4a0a0a, var(--blood-bright)); }
+  .clock-bar.danger { box-shadow: 0 0 14px rgba(179,21,26,0.7); }
+
+  #ceiling-blood { position: absolute; top: 0; left: 0; right: 0; z-index: 46; pointer-events: none; }
+
+  /* ---------- SUBTITLES & CHATTER ---------- */
+  #subtitles {
+    position: absolute; bottom: 220px; left: 50%; transform: translateX(-50%);
+    z-index: 40; pointer-events: none; text-align: center;
+    width: 80%; max-width: 600px; height: 60px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #subtitle-text {
+    font-family: 'Special Elite', Courier, monospace;
+    font-size: 19px; color: var(--ink);
+    text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 10px rgba(0,0,0,0.5);
+    opacity: 0; transition: opacity 0.25s ease;
+  }
+  #subtitle-text.show { opacity: 1; }
+  #subtitle-text.shaking {
+    animation: text-shake 0.3s infinite;
+    color: var(--blood-hot);
+    text-shadow: 0 0 8px rgba(179,21,26,0.9), 0 2px 4px #000;
+    font-size: 21px;
+  }
+  @keyframes text-shake {
+    0% { transform: translate(1px, 1px) rotate(0deg); }
+    10% { transform: translate(-1px, -2px) rotate(-1deg); }
+    20% { transform: translate(-3px, 0px) rotate(1deg); }
+    30% { transform: translate(0px, 2px) rotate(0deg); }
+    40% { transform: translate(1px, -1px) rotate(1deg); }
+    50% { transform: translate(-1px, 2px) rotate(-1deg); }
+    60% { transform: translate(-3px, 1px) rotate(0deg); }
+    70% { transform: translate(2px, 1px) rotate(-1deg); }
+    80% { transform: translate(-1px, -1px) rotate(1deg); }
+    90% { transform: translate(2px, 2px) rotate(0deg); }
+    100% { transform: translate(1px, -2px) rotate(-1deg); }
+  }
+
+  /* ---------- FLASHLIGHT CANVAS ---------- */
+  #flashlightCanvas {
+    position: absolute; inset: 0; z-index: 25; pointer-events: none;
+  }
+
+  /* ---------- SCREEN FLASH ---------- */
+  #screen-flash { position: absolute; inset: 0; z-index: 26; pointer-events: none; background: rgba(255,230,190,0.4); opacity: 0; }
+  #screen-flash.firing { animation: screen-flash 0.3s ease-out forwards; }
+  @keyframes screen-flash { 0% { opacity: 0; } 10% { opacity: 0.45; } 100% { opacity: 0; } }
+
+  /* ---------- JUMPSCARE (Loss State) ---------- */
+  #jumpscare {
+    position: absolute; inset: 0; z-index: 80;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; background: var(--void);
+  }
+  #jumpscare.show {
+    animation: jumpscare-flash 0.6s steps(2) forwards;
+  }
+  @keyframes jumpscare-flash {
+    0% { opacity: 0; } 10% { opacity: 1; } 20% { opacity: 0.1; } 30% { opacity: 1; } 80% { opacity: 0.8; } 100% { opacity: 1; }
+  }
+  #jumpscare img {
+    height: 90vh; max-width: 95vw; object-fit: contain;
+    filter: hue-rotate(320deg) contrast(3.5) brightness(0.65) saturate(3);
+    transform: scale(1.1);
+    animation: jump-zoom 0.5s ease-out forwards;
+  }
+  @keyframes jump-zoom {
+    0% { transform: scale(0.6) rotate(-5deg); }
+    100% { transform: scale(1.3) rotate(0deg); }
+  }
+
+  /* ---------- BLOOD SPLATTER ---------- */
+  #blood-overlay { position: absolute; inset: 0; z-index: 65; pointer-events: none; opacity: 0; }
+  #blood-overlay.show { animation: blood-in 1.1s ease forwards; }
+  @keyframes blood-in { 0% { opacity: 0; } 25% { opacity: 1; } 100% { opacity: 1; } }
+  .blood-drop { position: absolute; top: -8%; opacity: 0.92; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.7)); }
+  .blood-drop.run { animation: drop-fall linear forwards; }
+  @keyframes drop-fall { to { transform: translateY(118vh); } }
+
+  /* ---------- HAND + FLASHLIGHT RIG ---------- */
+  .rig {
+    position: absolute; bottom: -22px; left: 50%;
+    transform: translateX(-50%); z-index: 30; pointer-events: none;
+    transform-origin: 50% 100%;
+    transition: transform 0.1s cubic-bezier(0.1, 0.8, 0.3, 1);
+  }
+  .rig svg { display: block; filter: drop-shadow(0 -8px 30px rgba(0,0,0,0.9)); }
+  
+  .tremble { animation: tremble 0.38s infinite linear; transform-origin: 120px 210px; }
+  .tremble.terrified { animation: tremble-hard 0.14s infinite linear; }
+  @keyframes tremble {
+    0% { transform: rotate(-0.5deg) translate(0px, 0px); }
+    25% { transform: rotate(0.4deg) translate(0.5px, -0.4px); }
+    50% { transform: rotate(-0.3deg) translate(-0.4px, 0.4px); }
+    75% { transform: rotate(0.5deg) translate(0.3px, -0.2px); }
+    100% { transform: rotate(-0.5deg) translate(0px, 0px); }
+  }
+  @keyframes tremble-hard {
+    0% { transform: rotate(-2.2deg) translate(-1.5px, 0.5px); }
+    25% { transform: rotate(2.2deg) translate(1.8px, -1.2px); }
+    50% { transform: rotate(-1.8deg) translate(-1.4px, 1.4px); }
+    75% { transform: rotate(2.4deg) translate(1.2px, -0.5px); }
+    100% { transform: rotate(-2.2deg) translate(-1.5px, 0.5px); }
+  }
+
+  .torch-state { font-family: ui-monospace, monospace; font-size: 10px; letter-spacing: 0.22em; }
+
+  /* Sweat drops */
+  .sweat-drop { opacity: 0; fill: rgba(160, 200, 255, 0.35); }
+  .sweat-drop.sweating1 { animation: sweat-drip 3.2s infinite linear; }
+  .sweat-drop.sweating2 { animation: sweat-drip 2.7s infinite linear 0.9s; }
+  .sweat-drop.sweating3 { animation: sweat-drip 3.8s infinite linear 1.8s; }
+  @keyframes sweat-drip {
+    0% { transform: translate(0, 0); opacity: 0; }
+    20% { opacity: 0.75; }
+    80% { opacity: 0.75; }
+    100% { transform: translate(-3px, 65px); opacity: 0; }
+  }
+
+  /* ---------- CURSOR ---------- */
+  #cursor-dot {
+    position: fixed; width: 4px; height: 4px; border-radius: 50%;
+    background: rgba(255, 179, 71, 0.3);
+    box-shadow: 0 0 6px 2px rgba(255, 179, 71, 0.15);
+    pointer-events: none; z-index: 50;
+    transform: translate(-50%, -50%);
+    transition: opacity 0.5s ease;
+  }
+
+  /* ---------- MESSAGE CARD ---------- */
+  #message {
+    position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 90; text-align: center; pointer-events: none; opacity: 0; transition: opacity 0.7s ease;
+  }
+  #message.show { opacity: 1; pointer-events: all; background: rgba(2,1,1,0.7); cursor: default; }
+  .msg-eyebrow { font-size: 11px; letter-spacing: 0.32em; text-transform: uppercase; color: var(--ink-dim); margin-bottom: 16px; }
+  .msg-title { font-family: 'Eater', 'Cormorant Garamond', serif; font-size: 76px; line-height: 0.95; color: var(--ink); margin: 0 0 16px 0; letter-spacing: 0.01em; }
+  .msg-title.win { font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-size: 48px; color: var(--reveal); text-shadow: 0 0 35px rgba(220,238,255,0.65); }
+  .msg-title.lose { color: var(--blood-bright); text-shadow: 0 0 20px rgba(179,21,26,0.9), 0 0 50px rgba(179,21,26,0.6); }
+  .msg-sub { font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-size: 17px; color: var(--ink-dim); max-width: 440px; line-height: 1.7; margin-bottom: 34px; }
+  .msg-btn { cursor: pointer; background: transparent; border: 1px solid var(--amber-dim); color: var(--amber); font-family: inherit; font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; padding: 12px 26px; transition: all 0.2s ease; }
+  .msg-btn:hover { border-color: var(--amber); background: rgba(255,179,71,0.08); }
+  .msg-btn.lose-btn { border-color: var(--blood-bright); color: #ff7a72; }
+  .msg-btn.lose-btn:hover { border-color: var(--blood-hot); background: rgba(179,21,26,0.15); }
+
+  /* ---------- INTRO SCREEN ---------- */
+  #intro { position: absolute; inset: 0; z-index: 70; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--void); text-align: center; cursor: default; }
+  #intro .eyebrow { font-size: 11px; letter-spacing: 0.35em; color: var(--ink-dim); text-transform: uppercase; margin-bottom: 18px; }
+  #intro h1 { font-family: 'Eater', 'Cormorant Garamond', serif; font-weight: 400; font-size: 96px; color: var(--ink); margin: 0; letter-spacing: 0.02em; line-height: 0.9; text-shadow: 0 0 45px rgba(179,21,26,0.3); }
+  #intro h1 span { color: var(--blood-bright); text-shadow: 0 0 24px rgba(179,21,26,0.7); }
+  #intro p { max-width: 480px; font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; font-size: 17px; line-height: 1.8; color: var(--ink-dim); margin: 22px 0 30px 0; }
+  #intro p b { color: var(--ink); font-weight: 600; font-style: normal; }
+  .intro-rules { display: flex; gap: 34px; margin-bottom: 36px; }
+  .intro-rule { text-align: left; max-width: 155px; }
+  .intro-rule .num { font-size: 10px; color: var(--amber); letter-spacing: 0.15em; margin-bottom: 6px; }
+  .intro-rule .desc { font-size: 11px; color: var(--ink-dim); line-height: 1.55; }
+  .headphone-note { font-size: 10px; letter-spacing: 0.15em; color: var(--ink-dim); text-transform: uppercase; display: flex; align-items: center; gap: 8px; margin-top: 0; margin-bottom: 28px; }
+  .headphone-note::before { content: "◐"; color: var(--blood-bright); }
+
+  /* WARNINGS */
+  .health-warning {
+    border: 1px dashed var(--blood-bright);
+    background: rgba(179, 21, 26, 0.05);
+    color: #ff8882;
+    font-family: 'Special Elite', Courier, monospace;
+    font-size: 11px;
+    padding: 10px 18px;
+    max-width: 580px;
+    line-height: 1.5;
+    margin-bottom: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    animation: pulse-border 1.5s infinite alternate;
+  }
+  @keyframes pulse-border {
+    0% { border-color: rgba(179,21,26,0.3); }
+    100% { border-color: rgba(255,100,90,0.9); }
+  }
+
+  /* STORY SCREEN OVERLAY */
+  #story-overlay {
+    position: absolute; inset: 0; z-index: 1200;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    background: #020102; text-align: center; color: var(--ink);
+    padding: 40px; cursor: default;
+  }
+  .story-text {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-style: italic; font-size: 26px; line-height: 1.8;
+    max-width: 780px; color: var(--ink-dim); margin-bottom: 50px;
+    transition: opacity 0.5s ease;
+  }
+  .story-text span {
+    color: var(--ink);
+    text-shadow: 0 0 10px rgba(255,255,255,0.25);
+  }
+
+  /* TERMINAL CHALLENGE PANEL */
+  #term-overlay {
+    position: absolute; inset: 0; z-index: 800;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(4, 2, 4, 0.95); text-align: center;
+  }
+  .term-box {
+    border: 2px solid var(--blood-bright);
+    background: #0a0709;
+    padding: 35px 50px;
+    border-radius: 4px;
+    box-shadow: 0 0 45px rgba(179,21,26,0.4);
+    max-width: 520px; width: 90%;
+    animation: panel-shake-small 0.4s infinite alternate;
+  }
+  @keyframes panel-shake-small {
+    0% { transform: translate(-1px, 1px); }
+    100% { transform: translate(1px, -1px); }
+  }
+  .term-prompt {
+    font-family: 'Special Elite', Courier, monospace;
+    font-size: 18px; color: var(--blood-hot);
+    margin-bottom: 25px; text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .term-desc {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-style: italic; font-size: 16px; color: var(--ink-dim);
+    margin-bottom: 25px; line-height: 1.5;
+  }
+  .term-input {
+    background: #120d11;
+    border: 1px solid var(--blood-bright);
+    color: var(--ink);
+    font-family: 'Special Elite', Courier, monospace;
+    font-size: 22px;
+    padding: 10px 15px;
+    width: 100%; text-align: center; outline: none;
+    letter-spacing: 0.15em;
+  }
+  .term-input:focus {
+    box-shadow: 0 0 15px rgba(179,21,26,0.8);
+    border-color: var(--blood-hot);
+  }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="shake">
+    <div id="grain"></div>
+    <div id="vignette"></div>
+    <svg id="ceiling-blood" width="100%" height="60" viewBox="0 0 1000 60" preserveAspectRatio="none"></svg>
+
+    <div class="hud-top" id="hudTop">
+      <div class="charges">
+        <span class="charges-label">Charge</span>
+        <div class="bulb lit" id="bulb0"></div>
+        <div class="bulb lit" id="bulb1"></div>
+        <div class="bulb lit" id="bulb2"></div>
+      </div>
+      <div class="clock-wrap">
+        <div class="clock-label">It is getting closer</div>
+        <div class="clock-bar" id="clockBar"><div class="clock-fill" id="clockFill"></div></div>
+      </div>
+    </div>
+
+    <!-- VOLUMETRIC FLASHLIGHT CANVAS -->
+    <canvas id="flashlightCanvas"></canvas>
+    
+    <div id="screen-flash"></div>
+
+    <div id="subtitles">
+      <div id="subtitle-text"></div>
+    </div>
+
+    <div id="jumpscare">
+      <img src="assets/images/Ghost.png" alt="Ghost Jumpscare" id="jumpscareImg">
+    </div>
+
+    <div id="blood-overlay">
+      <svg width="100%" height="100%" style="position:absolute;inset:0;">
+        <defs>
+          <radialGradient id="bgrad" cx="50%" cy="0%" r="120%">
+            <stop offset="0%" stop-color="#7a0c0c" stop-opacity="0.6"/>
+            <stop offset="100%" stop-color="#7a0c0c" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <rect width="100%" height="40%" fill="url(#bgrad)"/>
+      </svg>
+      <div id="dropLayer"></div>
+    </div>
+
+    <div class="rig" id="rig">
+      <svg width="240" height="210" viewBox="0 0 240 210">
+        <defs>
+          <linearGradient id="skinGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#3a2a1d"/>
+            <stop offset="45%" stop-color="#26190f"/>
+            <stop offset="100%" stop-color="#130c07"/>
+          </linearGradient>
+          <linearGradient id="skinHi" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#4a3624"/>
+            <stop offset="100%" stop-color="#1c130c"/>
+          </linearGradient>
+          <linearGradient id="metalGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#0d0c0a"/>
+            <stop offset="18%" stop-color="#3c3833"/>
+            <stop offset="38%" stop-color="#15130f"/>
+            <stop offset="55%" stop-color="#4a453d"/>
+            <stop offset="78%" stop-color="#181612"/>
+            <stop offset="100%" stop-color="#060504"/>
+          </linearGradient>
+          <radialGradient id="lensGrad" cx="50%" cy="42%" r="60%">
+            <stop offset="0%" stop-color="#2a2118"/>
+            <stop offset="60%" stop-color="#0c0907"/>
+            <stop offset="100%" stop-color="#000"/>
+          </radialGradient>
+          <linearGradient id="gripGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#0a0908"/>
+            <stop offset="50%" stop-color="#2e2a24"/>
+            <stop offset="100%" stop-color="#070605"/>
+          </linearGradient>
+        </defs>
+
+        <!-- forearm / sleeve cuff -->
+        <path d="M75 210 L100 122 L150 122 L175 210 Z" fill="#070504"/>
+        <path d="M88 210 L104 130 L120 130 L112 210 Z" fill="#0c0a08" opacity="0.6"/>
+
+        <g class="tremble" id="trembleGroup">
+          <!-- palm / back of hand -->
+          <path d="M84 128 Q78 100 98 88 Q108 84 112 94 L114 96
+                   Q116 80 130 78 Q142 78 142 92
+                   Q146 78 158 80 Q168 84 164 98
+                   Q176 92 182 102 Q186 112 176 122
+                   Q186 130 182 146 Q176 162 158 164
+                   L98 164 Q80 160 78 144 Q76 134 84 128 Z"
+                fill="url(#skinGrad)" stroke="#0a0703" stroke-width="1"/>
+
+          <!-- fingers wrapped around barrel, knuckle shading -->
+          <g fill="url(#skinHi)" stroke="#0a0703" stroke-width="1">
+            <path d="M100 96 Q96 82 104 74 Q112 70 116 78 Q119 88 114 98 Q108 102 100 96 Z"/>
+            <path d="M118 86 Q115 68 124 60 Q132 56 136 65 Q139 76 133 88 Q126 93 118 86 Z"/>
+            <path d="M138 82 Q137 64 146 57 Q154 54 158 63 Q161 74 154 86 Q147 90 138 82 Z"/>
+            <path d="M156 90 Q157 74 165 68 Q172 65 176 74 Q178 84 171 94 Q164 97 156 90 Z"/>
+          </g>
+          <!-- knuckle creases -->
+          <g stroke="#0a0703" stroke-width="1" opacity="0.55" fill="none">
+            <path d="M101 90 Q106 86 111 90"/>
+            <path d="M120 78 Q126 73 131 78"/>
+            <path d="M140 74 Q146 69 151 74"/>
+            <path d="M158 82 Q164 78 169 84"/>
+          </g>
+
+          <!-- thumb across barrel -->
+          <path d="M78 140 Q60 132 58 116 Q58 104 70 102 Q80 102 84 114 Q90 126 84 140 Q82 144 78 140 Z"
+                fill="url(#skinGrad)" stroke="#0a0703" stroke-width="1"/>
+          <path d="M64 112 Q70 108 76 113" stroke="#0a0703" stroke-width="1" opacity="0.5" fill="none"/>
+
+          <!-- ===== FLASHLIGHT ===== -->
+          <g id="flashlight">
+            <!-- barrel body -->
+            <rect x="103" y="18" width="30" height="78" rx="5" fill="url(#metalGrad)" stroke="#000" stroke-width="1"/>
+            <!-- knurled grip rings -->
+            <g stroke="#000" stroke-width="1" opacity="0.5">
+              <line x1="103" y1="58" x2="133" y2="58"/>
+              <line x1="103" y1="62" x2="133" y2="62"/>
+              <line x1="103" y1="66" x2="133" y2="66"/>
+              <line x1="103" y1="70" x2="133" y2="70"/>
+              <line x1="103" y1="74" x2="133" y2="74"/>
+              <line x1="103" y1="78" x2="133" y2="78"/>
+            </g>
+            <!-- head / bezel -->
+            <rect x="97" y="4" width="42" height="18" rx="3" fill="url(#metalGrad)" stroke="#000" stroke-width="1"/>
+            <circle cx="118" cy="13" r="11" fill="url(#lensGrad)" stroke="#000" stroke-width="1.5"/>
+            <circle cx="118" cy="13" r="7" fill="#1a140c" id="bulbFace"/>
+            <ellipse cx="114" cy="9" rx="2.4" ry="1.3" fill="#aaa39a" opacity="0.55"/>
+            <!-- tailcap switch -->
+            <rect x="108" y="92" width="20" height="9" rx="2.5" fill="url(#gripGrad)" stroke="#000" stroke-width="1"/>
+            <circle cx="118" cy="96.5" r="3" fill="#b3151a" id="switchLED"/>
+            <!-- charge notches etched into barrel -->
+            <rect x="107" y="34" width="22" height="3" rx="1.5" fill="#ffb347" id="notch0"/>
+            <rect x="107" y="42" width="22" height="3" rx="1.5" fill="#ffb347" id="notch1"/>
+            <rect x="107" y="50" width="22" height="3" rx="1.5" fill="#ffb347" id="notch2"/>
+          </g>
+
+          <!-- Sweat Drops (Animate via CSS class addition) -->
+          <ellipse class="sweat-drop sd1" cx="95" cy="120" rx="1.2" ry="2.2"/>
+          <ellipse class="sweat-drop sd2" cx="130" cy="105" rx="1.4" ry="2.6"/>
+          <ellipse class="sweat-drop sd3" cx="160" cy="115" rx="1.2" ry="2.2"/>
+        </g>
+      </svg>
+      <!-- Text states moved to absolute bottom HUD container to avoid rotation cut-offs -->
+    </div>
+  </div>
+</div>
+
+<div id="hudBottom" style="position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); z-index: 50; text-align: center; pointer-events: none;">
+  <div style="margin-bottom: 5px;">
+    <span class="torch-state" id="torchState" style="color:var(--blood-bright); font-family: ui-monospace, monospace; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;">● OFF</span>
+  </div>
+  <div>
+    <span id="sonarState" style="font-family:ui-monospace, monospace; font-size:10px; letter-spacing:0.18em; color:#00ffcc; text-transform:uppercase;">SONAR: READY</span>
+  </div>
+</div>
+
+<div id="coward-banner" style="display: none; position: absolute; inset: 0; background: rgba(10, 0, 0, 0.96); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: var(--blood-bright); pointer-events: none;">
+  <h2 style="font-family: 'Eater', cursive; font-size: 72px; margin: 0 0 25px 0; text-shadow: 0 0 30px rgba(179,21,26,0.95); animation: text-shake 0.12s infinite; letter-spacing: 0.05em;">YOU COWARD SHIT!</h2>
+  <p style="font-family: 'Special Elite', monospace; font-size: 24px; color: var(--ink); max-width: 650px; line-height: 1.6; text-transform: uppercase;">Don't run away! What a shitty gamer. Stare into the dark and face it!</p>
+</div>
+
+<div id="cursor-dot"></div>
+
+<div id="message">
+  <div class="msg-eyebrow" id="msgEyebrow">Round Over</div>
+  <div class="msg-title" id="msgTitle">—</div>
+  <div class="msg-sub" id="msgSub">—</div>
+  <button class="msg-btn" id="msgBtn">Try Again</button>
+</div>
+
+<div id="story-overlay">
+  <div class="story-text" id="storyContent">
+    Loading the nightmare...
+  </div>
+  <div style="display:flex; gap:20px;">
+    <button class="msg-btn" id="storyNextBtn">Continue</button>
+    <button class="msg-btn" id="storySkipBtn" style="border-color:#5c554e; color:#7e786f;">Skip Story</button>
+  </div>
+</div>
+
+<div id="term-overlay">
+  <div class="term-box">
+    <div class="term-prompt" id="termPrompt">VERIFICATION REQUIRED</div>
+    <div class="term-desc" id="termDesc">Enter the calibration word to authorize sonar.</div>
+    <input type="text" class="term-input" id="termInput" autocomplete="off" spellcheck="false" placeholder="type response here">
+  </div>
+</div>
+
+<div id="intro">
+  <div id="intro-stage1" style="display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%;">
+    <div class="eyebrow">A listening game · for headphones</div>
+    <h1>BLACK<span>OUT</span></h1>
+    <p style="margin-top: 15px; margin-bottom: 15px; font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; color: var(--ink-dim); max-width: 440px; line-height: 1.6;">The dark is full of whispers. Plug in your headphones, close your eyes, and listen.</p>
+    <div class="health-warning" style="margin-bottom: 25px;">
+      ⚠️ CRITICAL WARNING: Pregnant women, patients with heart conditions, and old fellows MUST NOT PLAY THIS GAME due to severe jump scares and terrifying audio frequencies. PLEASE DON'T DIE.
+    </div>
+    <button class="msg-btn" id="initAudioBtn">Initialize Audio & Listen</button>
+  </div>
+  
+  <div id="intro-stage2" style="display: none; opacity: 0; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%; transition: opacity 0.8s ease;">
+    <div class="eyebrow">A listening game · for headphones</div>
+    <h1>BLACK<span>OUT</span></h1>
+    <p style="max-width: 680px; margin-bottom: 10px;">Something is moving in the dark. Close your eyes if you must, and <b>listen</b>. Track the target's footsteps and tells, and sweep your flashlight to align and banish it before your time or battery runs out.</p>
+    <div class="health-warning" style="margin-bottom: 15px; font-size: 10px; padding: 6px 14px;">
+      ⚠️ WARNING: DO NOT PLAY IF SENSITIVE. WE ARE NOT RESPONSIBLE FOR HEART FAILURE. PLEASE DON'T DIE.
+    </div>
+    <div class="headphone-note">Headphones strongly recommended</div>
+    <div class="intro-rules" style="display: grid; grid-template-columns: repeat(2, 1fr); max-width: 760px; gap: 18px; margin-top: 10px; margin-bottom: 20px; text-align: left;">
+      <div class="intro-rule" style="border-left: 2px solid var(--blood-bright); padding-left: 12px;"><div class="num" style="font-size: 10px; color: var(--blood-hot); letter-spacing: 0.12em;">01 — LISTEN</div><div class="desc" style="font-size: 11px; line-height: 1.5; color: var(--ink-dim);">Pan steps. Ghost steps are deep thuds with static crackle and heavy breathing tells. Decoys are light wood clicks.</div></div>
+      <div class="intro-rule" style="border-left: 2px solid var(--blood-bright); padding-left: 12px;"><div class="num" style="font-size: 10px; color: var(--blood-hot); letter-spacing: 0.12em;">02 — UV SCAN</div><div class="desc" style="font-size: 11px; line-height: 1.5; color: var(--ink-dim);">Sweep the cursor. Flashlight projects a passive dim UV beam that exposes glowing green ectoplasm tracks left by the ghost.</div></div>
+      <div class="intro-rule" style="border-left: 2px solid var(--blood-bright); padding-left: 12px;"><div class="num" style="font-size: 10px; color: var(--blood-hot); letter-spacing: 0.12em;">03 — EMF TRACKER</div><div class="desc" style="font-size: 11px; line-height: 1.5; color: var(--ink-dim);">Flashlight tail LED switch acts as a geiger. Blinks and ticks when pointed at the ghost (Green = Direct, Amber/Orange = Near, Red = Cold).</div></div>
+      <div class="intro-rule" style="border-left: 2px solid var(--blood-bright); padding-left: 12px;"><div class="num" style="font-size: 10px; color: var(--blood-hot); letter-spacing: 0.12em;">04 — SONAR RADAR</div><div class="desc" style="font-size: 11px; line-height: 1.5; color: var(--ink-dim);">Press Space or Right-Click to authorization prompt. Resolves a warning echo ring (450ms) but alerts the ghost. 9s reload.</div></div>
+    </div>
+    <button class="msg-btn" id="startBtn">Enter the Dark</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  // ---------------- CRAZYGAMES SDK INIT ----------------
+  // Initializes when hosted on CrazyGames.com; safe no-op in other environments
+  if (window.CrazyGames && window.CrazyGames.SDK) {
+    window.CrazyGames.SDK.init().catch(() => {});
+  }
+
+  // ---------------- GAME DESIGN & CONFIG ----------------
+  const TOTAL_TIME = 50; // seconds
+  const GHOST_VELOCITY_RANGE = { min: 60, max: 90 }; // pixels/sec
+  const DECOY_VELOCITY_RANGE = { min: 50, max: 80 }; // pixels/sec
+  const FLASH_DURATION = 320; // ms
+  const HIT_RADIUS = 75; // pixels
+  const AMBIENT_MUSIC_VOLUME = 0.35;
+  const AMBIENT_WIND_VOLUME = 0.25;
+
+  const MUTTERINGS = [
+    "*whispering* Did you hear that?",
+    "*whispering* It's in the dark...",
+    "*whispering* Please... go away...",
+    "*whispering* Where is it... left? Right?",
+    "*whispering* I can't see anything...",
+    "*gasp*",
+    "(Terrified whimpering)"
+  ];
+
+  const MISS_CURSES = [
+    "No! Nothing there!",
+    "Are you blind?! Stop wasting the light!",
+    "Damn it! I missed!",
+    "Stop clicking! We only have three charges!",
+    "Oh God, where is it?! You're going to get us killed!",
+    "Watch where you're pointing that thing!"
+  ];
+
+  const PANIC_MUTTERINGS = [
+    "No, no, no... it's right on top of us!",
+    "It's so close... I can hear it breathing!",
+    "I can't feel my hands...",
+    "I don't want to die in the dark..."
+  ];
+
+  const SOUND_ASSETS = {
+    wind: 'assets/Sounds/wind.mp3',
+    music: 'assets/Sounds/ghostband.mp3',
+    breath: 'assets/Sounds/ghostbreath.flac',
+    moan1: 'assets/Sounds/GhostMoan01.mp3',
+    moan2: 'assets/Sounds/GhostMoan02.mp3',
+    moan3: 'assets/Sounds/GhostMoan03.mp3',
+    moan4: 'assets/Sounds/GhostMoan04.mp3',
+    moan5: 'assets/Sounds/GhostMoan05.mp3',
+    scream: 'assets/Sounds/ghost.wav'
+  };
+
+  // ---------------- AUDIO SYSTEM ----------------
+  let audioCtx = null;
+  let soundsLoaded = false;
+  const audioBuffers = {};
+  
+  // Running audio sources
+  let ambientWindSource = null;
+  let ambientMusicSource = null;
+  let musicGainNode = null;
+  let windGainNode = null;
+  let lastEMFBlinkTime = 0;
+  let emfLEDState = false;
+
+  // New Sonar & UV Tracking variables
+  let sonarActive = false;
+  let sonarRadius = 0;
+  let sonarCooldown = 0;
+  let ghostFootsteps = [];
+
+  // Repairs states
+  let sonarBroken = false;
+  let repairingSonar = false;
+  let repairProgress = 0; // seconds elapsed
+  let fakeSonarMarkers = [];
+  
+  function getCtx() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return audioCtx;
+  }
+
+  async function preloadSounds() {
+    const ctx = getCtx();
+    const loadPromises = Object.entries(SOUND_ASSETS).map(async ([key, url]) => {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Network status: " + response.status);
+        const arrayBuf = await response.arrayBuffer();
+        const buffer = await ctx.decodeAudioData(arrayBuf);
+        audioBuffers[key] = buffer;
+        console.log(`Preloaded: ${key}`);
+      } catch (err) {
+        console.warn(`Failed to load ${key} from ${url}. Synthetic fallback active.`, err);
+        audioBuffers[key] = null;
+      }
+    });
+    await Promise.all(loadPromises);
+    soundsLoaded = true;
+  }
+
+  // --- AUDIO CONTROLLERS ---
+
+  function startAmbientWind() {
+    const ctx = getCtx();
+    windGainNode = ctx.createGain();
+    windGainNode.gain.setValueAtTime(AMBIENT_WIND_VOLUME, ctx.currentTime);
+    windGainNode.connect(ctx.destination);
+
+    if (audioBuffers.wind) {
+      ambientWindSource = ctx.createBufferSource();
+      ambientWindSource.buffer = audioBuffers.wind;
+      ambientWindSource.loop = true;
+      ambientWindSource.connect(windGainNode);
+      ambientWindSource.start(0);
+    } else {
+      // Procedural synthetic wind loop
+      const bufferSize = ctx.sampleRate * 4;
+      const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        output[i] = Math.random() * 2 - 1;
+      }
+      
+      const whiteNoise = ctx.createBufferSource();
+      whiteNoise.buffer = noiseBuffer;
+      whiteNoise.loop = true;
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(120, ctx.currentTime);
+      filter.Q.setValueAtTime(1.5, ctx.currentTime);
+
+      const lfo = ctx.createOscillator();
+      lfo.frequency.setValueAtTime(0.08, ctx.currentTime); // very slow gusts
+      const lfoGain = ctx.createGain();
+      lfoGain.gain.setValueAtTime(60, ctx.currentTime);
+
+      lfo.connect(lfoGain);
+      lfoGain.connect(filter.frequency);
+      whiteNoise.connect(filter).connect(windGainNode);
+
+      lfo.start();
+      whiteNoise.start(0);
+
+      ambientWindSource = {
+        stop: () => {
+          try { whiteNoise.stop(); } catch(e){}
+          try { lfo.stop(); } catch(e){}
+        }
+      };
+    }
+  }
+
+  function startAmbientMusic(isMenu = false) {
+    const ctx = getCtx();
+    musicGainNode = ctx.createGain();
+    const targetVolume = isMenu ? 0.22 : 0.08;
+    musicGainNode.gain.setValueAtTime(0.001, ctx.currentTime);
+    musicGainNode.gain.linearRampToValueAtTime(targetVolume, ctx.currentTime + 1.5);
+    musicGainNode.connect(ctx.destination);
+
+    if (audioBuffers.music) {
+      ambientMusicSource = ctx.createBufferSource();
+      ambientMusicSource.buffer = audioBuffers.music;
+      ambientMusicSource.loop = true;
+      ambientMusicSource.connect(musicGainNode);
+      ambientMusicSource.start(0);
+    } else {
+      // Procedural tense drone fallback
+      const droneOsc = ctx.createOscillator();
+      droneOsc.type = 'sawtooth';
+      droneOsc.frequency.setValueAtTime(45, ctx.currentTime);
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(80, ctx.currentTime);
+
+      droneOsc.connect(filter).connect(musicGainNode);
+      droneOsc.start();
+
+      ambientMusicSource = {
+        stop: () => {
+          try { droneOsc.stop(); } catch(e){}
+        }
+      };
+    }
+  }
+
+  function playHeartbeatThud(volume, speedFactor) {
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+    
+    function singleThud(time, vol) {
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(55, time);
+      osc.frequency.linearRampToValueAtTime(10, time + 0.12);
+      
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(80, time);
+      
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(vol, time);
+      gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.12);
+      
+      osc.connect(lp).connect(gain).connect(ctx.destination);
+      osc.start(time);
+      osc.stop(time + 0.14);
+    }
+
+    singleThud(now, volume);
+    singleThud(now + 0.15, volume * 0.55);
+  }
+
+  function playFootstep(pan, isGhost) {
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+
+    const panner = ctx.createStereoPanner();
+    // Exaggerate panning to ensure sharp left/right separation (Valorant-like localization)
+    let exaggeratedPan = pan;
+    exaggeratedPan = Math.sign(exaggeratedPan) * Math.pow(Math.abs(exaggeratedPan), 0.65);
+    exaggeratedPan = Math.max(-1.0, Math.min(1.0, exaggeratedPan * 1.35));
+    panner.pan.setValueAtTime(exaggeratedPan, now);
+    panner.connect(ctx.destination);
+
+    if (isGhost) {
+      // 1. Heavy physical thud (Ghost step)
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(52, now);
+      osc.frequency.exponentialRampToValueAtTime(18, now + 0.14);
+
+      const thumpGain = ctx.createGain();
+      thumpGain.gain.setValueAtTime(0.55, now);
+      thumpGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+
+      osc.connect(thumpGain).connect(panner);
+      osc.start(now);
+      osc.stop(now + 0.15);
+
+      // 2. Friction deep mud scuff
+      const scuffSize = ctx.sampleRate * 0.15;
+      const scuffBuf = ctx.createBuffer(1, scuffSize, ctx.sampleRate);
+      const sd = scuffBuf.getChannelData(0);
+      for (let i = 0; i < scuffSize; i++) {
+        sd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / scuffSize, 2);
+      }
+      const scuffSource = ctx.createBufferSource();
+      scuffSource.buffer = scuffBuf;
+
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(220, now);
+
+      const scuffGain = ctx.createGain();
+      scuffGain.gain.setValueAtTime(0.28, now);
+      scuffGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+
+      scuffSource.connect(lp).connect(scuffGain).connect(panner);
+      scuffSource.start(now);
+      scuffSource.stop(now + 0.16);
+
+      // 3. Eerie Tell Layer (GHOST ONLY)
+      // Crackling static discharge
+      const staticSize = ctx.sampleRate * 0.32;
+      const staticBuf = ctx.createBuffer(1, staticSize, ctx.sampleRate);
+      const stData = staticBuf.getChannelData(0);
+      for (let i = 0; i < staticSize; i++) {
+        stData[i] = (Math.random() * 2 - 1) * (Math.random() > 0.95 ? 0.6 : 0.03) * Math.pow(1 - i / staticSize, 1.5);
+      }
+      const staticSource = ctx.createBufferSource();
+      staticSource.buffer = staticBuf;
+
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.setValueAtTime(3200, now);
+      const staticGain = ctx.createGain();
+      staticGain.gain.setValueAtTime(0.18, now);
+      staticGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
+ 
+      staticSource.connect(hp).connect(staticGain).connect(panner);
+      staticSource.start(now + 0.01);
+      staticSource.stop(now + 0.32);
+
+      // Play organic heavy breath fragment if loaded
+      if (audioBuffers.breath) {
+        const breathSource = ctx.createBufferSource();
+        breathSource.buffer = audioBuffers.breath;
+        const breathGain = ctx.createGain();
+        breathGain.gain.setValueAtTime(0.55, now);
+        breathGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+        
+        breathSource.connect(breathGain).connect(panner);
+        const offset = Math.random() * (audioBuffers.breath.duration - 0.45);
+        breathSource.start(now, offset, 0.45);
+        breathSource.stop(now + 0.46);
+      } else {
+        // High soft whistling breath draft (synthetic tell fallback)
+        const whistle = ctx.createOscillator();
+        whistle.type = 'sine';
+        whistle.frequency.setValueAtTime(1000, now);
+        whistle.frequency.linearRampToValueAtTime(700, now + 0.25);
+
+        const whistleGain = ctx.createGain();
+        whistleGain.gain.setValueAtTime(0.02, now);
+        whistleGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
+
+        whistle.connect(whistleGain).connect(panner);
+        whistle.start(now);
+        whistle.stop(now + 0.26);
+      }
+    } else {
+      // Light hollow tap step (Decoy step)
+      const osc = ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(140, now);
+      osc.frequency.exponentialRampToValueAtTime(80, now + 0.07);
+
+      const thumpGain = ctx.createGain();
+      thumpGain.gain.setValueAtTime(0.18, now);
+      thumpGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.07);
+
+      osc.connect(thumpGain).connect(panner);
+      osc.start(now);
+      osc.stop(now + 0.08);
+
+      // Hollow bandpass scuff noise (like snapping wood/rustling dry leaves)
+      const scuffSize = ctx.sampleRate * 0.08;
+      const scuffBuf = ctx.createBuffer(1, scuffSize, ctx.sampleRate);
+      const sd = scuffBuf.getChannelData(0);
+      for (let i = 0; i < scuffSize; i++) {
+        sd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / scuffSize, 3);
+      }
+      const scuffSource = ctx.createBufferSource();
+      scuffSource.buffer = scuffBuf;
+
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.setValueAtTime(1100, now);
+      bp.Q.setValueAtTime(2.0, now);
+
+      const scuffGain = ctx.createGain();
+      scuffGain.gain.setValueAtTime(0.12, now);
+      scuffGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.07);
+
+      scuffSource.connect(bp).connect(scuffGain).connect(panner);
+      scuffSource.start(now);
+      scuffSource.stop(now + 0.08);
+    }
+  }
+
+  function playAmbientGhostMoan(pan) {
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+    
+    // Choose loaded moan if available
+    const moanKeys = ['moan1', 'moan2', 'moan3', 'moan4', 'moan5'];
+    const loadedMoans = moanKeys.filter(k => audioBuffers[k]);
+
+    const panner = ctx.createStereoPanner();
+    panner.pan.setValueAtTime(pan, now);
+    panner.connect(ctx.destination);
+
+    if (loadedMoans.length > 0) {
+      const randomKey = loadedMoans[Math.floor(Math.random() * loadedMoans.length)];
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuffers[randomKey];
+      
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.55, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + source.buffer.duration - 0.1);
+      
+      source.connect(gain).connect(panner);
+      source.start(now);
+    } else {
+      // Synthetic creepy sweep moan
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      osc1.type = 'sawtooth';
+      osc2.type = 'triangle';
+
+      osc1.frequency.setValueAtTime(150, now);
+      osc1.frequency.exponentialRampToValueAtTime(80, now + 1.6);
+      osc2.frequency.setValueAtTime(152, now);
+      osc2.frequency.exponentialRampToValueAtTime(81, now + 1.6);
+
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(250, now);
+      lp.frequency.exponentialRampToValueAtTime(120, now + 1.6);
+      lp.Q.setValueAtTime(4.0, now);
+
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(0.12, now + 0.4);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.6);
+
+      osc1.connect(lp);
+      osc2.connect(lp);
+      lp.connect(gain).connect(panner);
+
+      osc1.start(now);
+      osc1.stop(now + 1.7);
+      osc2.start(now);
+      osc2.stop(now + 1.7);
+    }
+  }
+
+  function playFlashSound() {
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+    
+    // High voltage capacitor recharge sound + flash pop
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(950, now);
+    osc.frequency.exponentialRampToValueAtTime(40, now + 0.18);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.35, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.19);
+
+    // Charger recharge whirr
+    const rechargeOsc = ctx.createOscillator();
+    rechargeOsc.type = 'sine';
+    rechargeOsc.frequency.setValueAtTime(250, now + 0.2);
+    rechargeOsc.frequency.exponentialRampToValueAtTime(850, now + 1.1);
+
+    const rechargeGain = ctx.createGain();
+    rechargeGain.gain.setValueAtTime(0.0001, now + 0.2);
+    rechargeGain.gain.linearRampToValueAtTime(0.04, now + 0.4);
+    rechargeGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.1);
+
+    rechargeOsc.connect(rechargeGain).connect(ctx.destination);
+    rechargeOsc.start(now + 0.2);
+    rechargeOsc.stop(now + 1.1);
+  }
+
+  function playMissSound() {
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(220, now);
+    osc.frequency.exponentialRampToValueAtTime(45, now + 0.45);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.46);
+  }
+
+  function playWinSound() {
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+    // Heavenly, echoey resolution chord
+    [523.25, 659.25, 783.99, 1046.5].forEach((f, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, now + idx * 0.1);
+      
+      gain.gain.setValueAtTime(0.0001, now + idx * 0.1);
+      gain.gain.linearRampToValueAtTime(0.15, now + idx * 0.1 + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.1 + 0.9);
+
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now + idx * 0.1);
+      osc.stop(now + idx * 0.1 + 0.9);
+    });
+  }
+
+  function playScaredGasp() {
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+    
+    if (audioBuffers.breath) {
+      // Play high-intensity gasp from breathing file
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuffers.breath;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.7, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+      source.connect(gain).connect(ctx.destination);
+      // Play loudest section
+      source.start(now, 1.2, 0.6);
+    } else {
+      // Synthesize quick inhalation gasp
+      const bufferSize = ctx.sampleRate * 0.25;
+      const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(i / bufferSize, 1.5); // swells up quickly
+      }
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+      
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.setValueAtTime(750, now);
+      bp.Q.setValueAtTime(0.8, now);
+
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(0.28, now + 0.18);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
+
+      noise.connect(bp).connect(gain).connect(ctx.destination);
+      noise.start(now);
+      noise.stop(now + 0.26);
+    }
+  }
+
+  function playHiccup() {
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+    
+    // Quick throat click
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, now);
+    osc.frequency.exponentialRampToValueAtTime(1600, now + 0.04);
+    
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.025, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+    
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.05);
+
+    // Followed by tiny gasp
+    const noiseSize = ctx.sampleRate * 0.12;
+    const noiseBuf = ctx.createBuffer(1, noiseSize, ctx.sampleRate);
+    const data = noiseBuf.getChannelData(0);
+    for (let i = 0; i < noiseSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(i / noiseSize, 2);
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = noiseBuf;
+    
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(900, now);
+    filter.Q.setValueAtTime(1.2, now);
+
+    const ng = ctx.createGain();
+    ng.gain.setValueAtTime(0.001, now);
+    ng.gain.linearRampToValueAtTime(0.05, now + 0.06);
+    ng.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+
+    noise.connect(filter).connect(ng).connect(ctx.destination);
+    noise.start(now);
+    noise.stop(now + 0.13);
+  }
+
+  function playJumpscareScream() {
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+
+    // Stop ambient wind and music
+    try { windGainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.1); } catch(e){}
+    try { musicGainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.1); } catch(e){}
+
+    if (audioBuffers.scream) {
+      const src = ctx.createBufferSource();
+      src.buffer = audioBuffers.scream;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(1.3, now);
+      src.connect(gain).connect(ctx.destination);
+      src.start(now);
+    } else {
+      // Procedural distortion shriek
+      const osc = ctx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(180, now);
+      osc.frequency.exponentialRampToValueAtTime(1100, now + 0.2);
+      osc.frequency.exponentialRampToValueAtTime(60, now + 0.7);
+
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'peaking';
+      filter.frequency.setValueAtTime(1500, now);
+      filter.Q.setValueAtTime(0.5, now);
+
+      const dist = ctx.createWaveShaper();
+      const makeDistortionCurve = (amount = 50) => {
+        const k = typeof amount === 'number' ? amount : 50;
+        const n_samples = 44100;
+        const curve = new Float32Array(n_samples);
+        const deg = Math.PI / 180;
+        for (let i = 0; i < n_samples; ++i) {
+          const x = (i * 2) / n_samples - 1;
+          curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
+        }
+        return curve;
+      };
+      dist.curve = makeDistortionCurve(120);
+      dist.oversample = '4x';
+
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(0.35, now + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.7);
+
+      osc.connect(filter).connect(dist).connect(gain).connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.72);
+      
+      // Low sub rumble impact
+      const sub = ctx.createOscillator();
+      sub.type = 'sine';
+      sub.frequency.setValueAtTime(80, now);
+      sub.frequency.linearRampToValueAtTime(10, now + 0.6);
+      
+      const subGain = ctx.createGain();
+      subGain.gain.setValueAtTime(0.8, now);
+      subGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+      
+      sub.connect(subGain).connect(ctx.destination);
+      sub.start(now);
+      sub.stop(now + 0.62);
+    }
+  }
+
+  function cleanupRunningAudio() {
+    try { if (ambientWindSource) ambientWindSource.stop(); } catch(e){}
+    try { if (ambientMusicSource) ambientMusicSource.stop(); } catch(e){}
+    ambientWindSource = null;
+    ambientMusicSource = null;
+  }
+
+  // ---------------- GAME STATE ----------------
+  const stage = document.getElementById('stage');
+  const shakeEl = document.getElementById('shake');
+  const clockFill = document.getElementById('clockFill');
+  const clockBar = document.getElementById('clockBar');
+  const torchState = document.getElementById('torchState');
+  const switchLED = document.getElementById('switchLED');
+  const screenFlash = document.getElementById('screen-flash');
+  const message = document.getElementById('message');
+  const msgTitle = document.getElementById('msgTitle');
+  const msgSub = document.getElementById('msgSub');
+  const msgEyebrow = document.getElementById('msgEyebrow');
+  const msgBtn = document.getElementById('msgBtn');
+  const cursorDot = document.getElementById('cursor-dot');
+  const trembleGroup = document.getElementById('trembleGroup');
+  const jumpscare = document.getElementById('jumpscare');
+  const bloodOverlay = document.getElementById('blood-overlay');
+  const dropLayer = document.getElementById('dropLayer');
+  const vignette = document.getElementById('vignette');
+  const rig = document.getElementById('rig');
+  const subtitleText = document.getElementById('subtitle-text');
+  const canvas = document.getElementById('flashlightCanvas');
+  const ctx = canvas.getContext('2d');
+
+  let charges = 3;
+  let timeLeft = TOTAL_TIME;
+  let gameOver = false;
+  let gameStarted = false;
+  let lastFrameTime = 0;
+
+  // Entities
+  let ghost = null;
+  let decoys = [];
+
+  // Intervals / Timers
+  let heartbeatTimer = 0;
+  let mutterTimer = 0;
+  let ambientMoanTimer = 0;
+
+  // Visual Flash variables
+  let flashTimeRemaining = 0;
+  let flashAngle = 0;
+  let flashOrigin = { x: 0, y: 0 };
+  let dustMotes = [];
+
+  // Ghost image loading
+  const ghostImage = new Image();
+  ghostImage.src = 'assets/images/Ghost.png';
+
+  // Resize canvas to cover viewport
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  // Mouse tracking
+  let mouseX = window.innerWidth / 2;
+  let mouseY = window.innerHeight / 2;
+  let currentHandAngle = 0;
+
+  document.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    
+    // Position the aim laser guide dot
+    cursorDot.style.left = mouseX + 'px';
+    cursorDot.style.top = mouseY + 'px';
+  });
+
+  // Init dust motes
+  function initDustMotes() {
+    dustMotes = [];
+    const count = 60;
+    for (let i = 0; i < count; i++) {
+      dustMotes.push({
+        x: Math.random() * window.innerWidth,
+        y: Math.random() * window.innerHeight,
+        vx: (Math.random() - 0.5) * 8,
+        vy: (Math.random() - 0.5) * 8 + 3, // slightly drifting down
+        size: 0.8 + Math.random() * 1.6,
+        baseOpacity: 0.25 + Math.random() * 0.45
+      });
+    }
+  }
+
+  function updateDustMotes(dt) {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    dustMotes.forEach(m => {
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
+      
+      // Wrap-around
+      if (m.x < 0) m.x = w;
+      if (m.x > w) m.x = 0;
+      if (m.y < 0) m.y = h;
+      if (m.y > h) m.y = 0;
+    });
+  }
+
+  function bulbEls() { return [document.getElementById('bulb0'), document.getElementById('bulb1'), document.getElementById('bulb2')]; }
+  function notchEls() { return [document.getElementById('notch0'), document.getElementById('notch1'), document.getElementById('notch2')]; }
+  function sweatDropEls() { return document.querySelectorAll('.sweat-drop'); }
+
+  // ---------------- RESET / INITIALIZATION ----------------
+
+  function resetGame() {
+    cleanupRunningAudio();
+
+    charges = 3;
+    timeLeft = TOTAL_TIME;
+    gameOver = false;
+    lastFrameTime = performance.now();
+    flashTimeRemaining = 0;
+
+    // Reset HUD
+    bulbEls().forEach(b => { b.classList.add('lit'); b.classList.remove('spent'); });
+    notchEls().forEach(n => n.setAttribute('fill', '#ffb347'));
+    clockFill.style.width = '100%';
+    clockBar.classList.remove('danger');
+    document.getElementById('hudTop').classList.remove('fade-out');
+
+    // Reset styling
+    message.classList.remove('show');
+    jumpscare.classList.remove('show');
+    bloodOverlay.classList.remove('show');
+    dropLayer.innerHTML = '';
+    document.getElementById('ceiling-blood').innerHTML = '';
+    trembleGroup.classList.remove('terrified');
+    vignette.classList.remove('tight');
+    vignette.classList.remove('pulse-active');
+    
+    // Clear subtitles
+    subtitleText.textContent = '';
+    subtitleText.classList.remove('show', 'shaking');
+
+    // Reset sweating
+    sweatDropEls().forEach(s => s.classList.remove('sweating1', 'sweating2', 'sweating3'));
+
+    // Set entities
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    
+    // Spawn ghost on one side, and let it cross
+    const ghostLeftStart = Math.random() > 0.5;
+    const ghostVx = (ghostLeftStart ? 1 : -1) * (GHOST_VELOCITY_RANGE.min + Math.random() * (GHOST_VELOCITY_RANGE.max - GHOST_VELOCITY_RANGE.min));
+    ghost = {
+      x: ghostLeftStart ? 100 : w - 100,
+      y: h * 0.22 + Math.random() * h * 0.35,
+      vx: ghostVx,
+      vy: (Math.random() - 0.5) * 8,
+      isGhost: true,
+      stepInterval: 1.1 + Math.random() * 0.3,
+      lastStepTime: 0,
+      revealed: false
+    };
+
+    // Spawn 2 decoys walking in random directions
+    decoys = [
+      { startLeft: Math.random() > 0.5, yRatio: 0.25 + Math.random() * 0.15 },
+      { startLeft: Math.random() > 0.5, yRatio: 0.45 + Math.random() * 0.15 }
+    ].map((cfg, idx) => {
+      const dVx = (cfg.startLeft ? 1 : -1) * (DECOY_VELOCITY_RANGE.min + Math.random() * (DECOY_VELOCITY_RANGE.max - DECOY_VELOCITY_RANGE.min));
+      return {
+        x: cfg.startLeft ? 120 : w - 120,
+        y: h * cfg.yRatio,
+        vx: dVx,
+        vy: (Math.random() - 0.5) * 12,
+        isGhost: false,
+        stepInterval: 1.0 + Math.random() * 0.4,
+        lastStepTime: 0,
+        revealed: false
+      };
+    });
+
+    initDustMotes();
+
+    lastEMFBlinkTime = 0;
+    emfLEDState = false;
+    sonarActive = false;
+    sonarRadius = 0;
+    sonarCooldown = 0;
+    ghostFootsteps = [];
+    sonarBroken = false;
+    repairingSonar = false;
+    repairProgress = 0;
+    poopSmellTime = 0;
+    fakeSonarMarkers = [];
+    pantsSoiled = false;
+    cleaningPants = false;
+    cleanProgress = 0;
+    
+    // Clear ping marker timers on reset
+    if (ghost) {
+      ghost.pingMarkerTime = 0;
+      ghost.pingTriggered = false;
+    }
+    decoys.forEach(d => {
+      d.pingMarkerTime = 0;
+      d.pingTriggered = false;
+    });
+
+    // Start Loops
+    if (ambientWindSource) {
+      try { ambientWindSource.stop(); } catch(e){}
+    }
+    startAmbientWind();
+    
+    if (!ambientMusicSource) {
+      startAmbientMusic(false);
+    } else if (musicGainNode) {
+      // Transition menu music seamlessly to in-game volume
+      musicGainNode.gain.setValueAtTime(musicGainNode.gain.value, getCtx().currentTime);
+      musicGainNode.gain.linearRampToValueAtTime(0.08, getCtx().currentTime + 1.0);
+    }
+
+    // Trigger ambient sweat drops based on round time
+    setTimeout(() => {
+      if (!gameOver) sweatDropEls()[0].classList.add('sweating1');
+    }, 4000);
+    setTimeout(() => {
+      if (!gameOver) sweatDropEls()[1].classList.add('sweating2');
+    }, 9000);
+
+    // Fade top HUD slightly after 5 seconds to intensify isolation
+    setTimeout(() => {
+      if (gameStarted && !gameOver) {
+        document.getElementById('hudTop').classList.add('fade-out');
+      }
+    }, 5550);
+
+    gameStarted = true;
+  }
+
+  // ---------------- HUD VIGNETTE PULSES ----------------
+
+  function triggerVignettePulse(tension) {
+    vignette.classList.remove('pulse-active');
+    void vignette.offsetWidth; // reflow
+    vignette.classList.add('pulse-active');
+    
+    // Give the hand a tiny extra twitch in sync with the heartbeat thud
+    if (!trembleGroup.classList.contains('terrified')) {
+      const intensity = 0.5 + tension * 1.5;
+      rig.style.transform = `translateX(-50%) rotate(${currentHandAngle + (Math.random() - 0.5) * intensity}deg)`;
+    }
+  }
+
+  function ceilingDripIntensity() {
+    const timeFactor = 1 - Math.max(0, timeLeft / TOTAL_TIME);
+    const chargeFactor = (3 - charges) / 3;
+    return Math.min(1, timeFactor * 0.7 + chargeFactor * 0.4);
+  }
+
+  function renderCeilingBlood() {
+    const svg = document.getElementById('ceiling-blood');
+    const intensity = ceilingDripIntensity();
+    const dropCount = Math.round(intensity * 12);
+    svg.innerHTML = '';
+    for (let i = 0; i < dropCount; i++) {
+      const x = (i / 12) * 1000 + Math.random() * 45;
+      const len = 7 + Math.random() * 32 * intensity;
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', `M${x},0 q-2,${len * 0.5} 0,${len} q2,${len * 0.3} 0,${len + 5}`);
+      path.setAttribute('stroke', '#7a0c0c');
+      path.setAttribute('stroke-width', (1.2 + Math.random() * 1.8).toFixed(1));
+      path.setAttribute('fill', 'none');
+      path.setAttribute('opacity', (0.35 + intensity * 0.55).toFixed(2));
+      path.setAttribute('stroke-linecap', 'round');
+      svg.appendChild(path);
+    }
+  }
+
+  function spawnBloodDrops(count) {
+    dropLayer.innerHTML = '';
+    for (let i = 0; i < count; i++) {
+      const div = document.createElement('div');
+      div.className = 'blood-drop run';
+      const x = Math.random() * 100;
+      const w = 7 + Math.random() * 15;
+      const h = w * 2.2;
+      const delay = Math.random() * 0.6;
+      const dur = 2.2 + Math.random() * 2.0;
+      div.style.left = x + 'vw';
+      div.style.animationDelay = delay + 's';
+      div.style.animationDuration = dur + 's';
+      div.innerHTML = `<svg width="${w}" height="${h}" viewBox="0 0 20 44">
+          <path d="M10 0 C16 14 19 22 19 30 C19 38 15 44 10 44 C5 44 1 38 1 30 C1 22 4 14 10 0 Z" fill="#7a0c0c"/>
+        </svg>`;
+      dropLayer.appendChild(div);
+    }
+  }
+
+  // ---------------- SUBTITLE SYSTEM ----------------
+
+  function showSubtitle(text, duration = 2000, isPanic = false) {
+    if (gameOver) return;
+    subtitleText.textContent = text;
+    subtitleText.classList.remove('show', 'shaking');
+    void subtitleText.offsetWidth; // reflow
+    
+    subtitleText.classList.add('show');
+    if (isPanic) {
+      subtitleText.classList.add('shaking');
+    }
+    
+    // Auto clear
+    clearTimeout(subtitleText.timerId);
+    subtitleText.timerId = setTimeout(() => {
+      subtitleText.classList.remove('show', 'shaking');
+    }, duration);
+  }
+
+  // ---------------- GAMEPLAY LOOPS ----------------
+
+  function updateEntities(dt) {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const nowCtx = getCtx().currentTime;
+
+    // Repel ghost if poop smell is active
+    if (ghost && poopSmellTime > 0) {
+      const pivotX = w / 2;
+      const dx = ghost.x - pivotX;
+      // Push ghost horizontally towards closest corner and push it up fast
+      ghost.vx = Math.sign(dx || (Math.random() - 0.5)) * 260; 
+      ghost.vy = -180; // run upwards
+    }
+
+    [ghost, ...decoys].forEach(ent => {
+      // Move
+      ent.x += ent.vx * dt;
+      ent.y += ent.vy * dt;
+
+      // Bounce off screen boundaries to stay in play
+      if (ent.x < 80) {
+        ent.vx = Math.abs(ent.vx);
+        ent.x = 80;
+      } else if (ent.x > w - 80) {
+        ent.vx = -Math.abs(ent.vx);
+        ent.x = w - 80;
+      }
+
+      // Reverse vertical direction at boundaries
+      if (ent.y < h * 0.18 || ent.y > h * 0.65) {
+        ent.vy = -ent.vy;
+      }
+
+      // Footstep player scheduler
+      if (nowCtx - ent.lastStepTime > ent.stepInterval) {
+        const pan = Math.max(-1, Math.min(1, (ent.x / w) * 2 - 1));
+        playFootstep(pan, ent.isGhost);
+        ent.lastStepTime = nowCtx;
+
+        // Save footprints if it is the ghost to draw them in UV beam!
+        if (ent.isGhost) {
+          ghostFootsteps.push({
+            x: ent.x,
+            y: ent.y,
+            opacity: 1.0,
+            spawnTime: nowCtx,
+            isGhost: true
+          });
+        } else {
+          // Decoys leave fake discolored prints with 35% chance
+          if (Math.random() < 0.35) {
+            ghostFootsteps.push({
+              x: ent.x,
+              y: ent.y,
+              opacity: 0.65,
+              spawnTime: nowCtx,
+              isGhost: false
+            });
+          }
+        }
+        
+        // Randomize step intervals slightly for realism
+        ent.stepInterval = (ent.isGhost ? 1.1 : 0.9) + Math.random() * 0.4;
+      }
+    });
+
+    // Update footprints decay (ghost fades in 1.8s, decoys fade in 1.2s)
+    ghostFootsteps.forEach(f => {
+      if (f.isGhost) {
+        f.opacity -= dt * 0.55; 
+      } else {
+        f.opacity -= dt * 0.83;
+      }
+    });
+    ghostFootsteps = ghostFootsteps.filter(f => f.opacity > 0);
+  }
+
+  function handleMutterings() {
+    const nowCtx = getCtx().currentTime;
+    if (nowCtx > mutterTimer) {
+      // Trigger a whisper or a hiccup
+      const roll = Math.random();
+      const isPanic = (timeLeft / TOTAL_TIME < 0.25) || (charges === 1);
+      
+      if (roll < 0.2) {
+        // Hiccup
+        playHiccup();
+        showSubtitle("*hiccup*", 1200, false);
+      } else {
+        // Dialogue
+        const list = isPanic ? PANIC_MUTTERINGS : MUTTERINGS;
+        const line = list[Math.floor(Math.random() * list.length)];
+        showSubtitle(line, 2200, isPanic);
+      }
+
+      // Set next mutter time
+      mutterTimer = nowCtx + 8 + Math.random() * 7;
+    }
+  }
+
+  function handleAmbientMoans() {
+    const nowCtx = getCtx().currentTime;
+    if (nowCtx > ambientMoanTimer) {
+      const w = window.innerWidth;
+      // Play a distant spectral moan from the ghost's approximate pan
+      const pan = Math.max(-1, Math.min(1, (ghost.x / w) * 2 - 1));
+      playAmbientGhostMoan(pan);
+
+      // Set next moan timer
+      ambientMoanTimer = nowCtx + 7.5 + Math.random() * 6.5;
+    }
+  }
+
+  function handleHeartbeat() {
+    const nowCtx = getCtx().currentTime;
+    if (nowCtx > heartbeatTimer) {
+      // Heartbeat dynamics based on panic state
+      const timeFactor = 1 - Math.max(0, timeLeft / TOTAL_TIME);
+      const chargeFactor = (3 - charges) / 3;
+      const tension = Math.min(1, timeFactor * 0.75 + chargeFactor * 0.45);
+      
+      const interval = 1.3 - tension * 0.9; // ranging from 1.3s down to 0.4s
+      heartbeatTimer = nowCtx + interval;
+
+      const volume = 0.25 + tension * 0.55;
+      playHeartbeatThud(volume, tension);
+
+      // Swell tension drone music as game gets intense
+      if (musicGainNode) {
+        musicGainNode.gain.linearRampToValueAtTime(AMBIENT_MUSIC_VOLUME * tension, nowCtx + interval);
+      }
+      
+      // Decrease wind sound slightly to focus on heartbeat and cues
+      if (windGainNode) {
+        windGainNode.gain.linearRampToValueAtTime(AMBIENT_WIND_VOLUME * (1 - tension * 0.4), nowCtx + interval);
+      }
+
+      // Shivering hand escalation
+      if (tension > 0.65) {
+        trembleGroup.classList.add('terrified');
+        sweatDropEls().forEach(s => s.classList.add('sweating3'));
+      } else {
+        trembleGroup.classList.remove('terrified');
+      }
+    }
+  }
+
+  function updateFlashlightRotation() {
+    if (repairingSonar || cleaningPants) return; // Flashlight is frozen while busy!
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    
+    // Bottom center of viewport (elbow pivot)
+    const pivotX = w / 2;
+    const pivotY = h + 15;
+
+    const dx = mouseX - pivotX;
+    const dy = mouseY - pivotY;
+
+    // Angle of forearm pointing to cursor (straight up is -Math.PI / 2)
+    const angleRad = Math.atan2(dy, dx);
+    let angleDeg = (angleRad + Math.PI / 2) * 180 / Math.PI;
+
+    // Concurrently clamp rotation to avoid broken arm posture (-68 to +68 deg)
+    angleDeg = Math.max(-68, Math.min(68, angleDeg));
+    currentHandAngle = angleDeg;
+
+    // Apply translation + rotation on the rig
+    rig.style.transform = `translateX(-50%) rotate(${angleDeg}deg)`;
+  }
+
+  // ---------------- STRIKE / FLASH TRIGGER ----------------
+
+  function fireFlash() {
+    if (gameOver || charges <= 0) return;
+    charges--;
+    
+    // Update battery hud representation
+    const bulbs = bulbEls();
+    const notches = notchEls();
+    bulbs[charges].classList.remove('lit');
+    bulbs[charges].classList.add('spent');
+    notches[charges].setAttribute('fill', '#2a2622');
+
+    // Visual triggers
+    torchState.textContent = '● FLASH';
+    torchState.style.color = 'var(--amber-hot)';
+    switchLED.setAttribute('fill', '#ffd98c');
+    document.getElementById('bulbFace').setAttribute('fill', '#ffecb3');
+    
+    screenFlash.classList.remove('firing');
+    void screenFlash.offsetWidth;
+    screenFlash.classList.add('firing');
+
+    // Trigger audio
+    playFlashSound();
+    
+    // Set parameters for canvas rendering of flash beam
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const pivotX = w / 2;
+    const pivotY = h;
+
+    // Hand length is roughly 195px. Lens bezel is placed there in the rotated rig.
+    const handLength = 195;
+    const rad = (currentHandAngle - 90) * Math.PI / 180;
+    
+    flashOrigin.x = pivotX + handLength * Math.cos(rad);
+    flashOrigin.y = h + handLength * Math.sin(rad);
+    flashAngle = rad;
+    flashTimeRemaining = FLASH_DURATION / 1000;
+
+    // Temporarily increase shake on the stage during pop
+    shakeEl.classList.add('shaking');
+    setTimeout(() => {
+      shakeEl.classList.remove('shaking');
+      torchState.textContent = '● OFF';
+      torchState.style.color = 'var(--blood-bright)';
+      switchLED.setAttribute('fill', '#b3151a');
+      document.getElementById('bulbFace').setAttribute('fill', '#1a140c');
+    }, 280);
+
+    // Hit registration logic
+    // Check click coordinates relative to entities
+    const clickX = mouseX;
+    const clickY = mouseY;
+    let hitAny = false;
+
+    // Check Ghost first
+    const distG = Math.hypot(ghost.x - clickX, ghost.y - clickY);
+    if (distG <= HIT_RADIUS) {
+      hitAny = true;
+      ghost.revealed = true;
+      ghost.revealedTime = 1.5; // visible for 1.5s as it dies
+      
+      // Stop muttering & heartbeat
+      gameOver = true;
+      cleanupRunningAudio();
+      playWinSound();
+      
+      setTimeout(() => {
+        winGame();
+      }, 1000);
+    } else {
+      // Check decoys
+      decoys.forEach(d => {
+        const distD = Math.hypot(d.x - clickX, d.y - clickY);
+        if (distD <= HIT_RADIUS) {
+          hitAny = true;
+          d.revealed = true;
+          d.revealedTime = 0.9; // fleeting shadow
+          playMissSound();
+        }
+      });
+    }
+
+    if (!hitAny) {
+      // Flash was a complete miss: waste!
+      playMissSound();
+      playScaredGasp();
+      
+      // Make hand shiver uncontrollably
+      const oldClass = trembleGroup.className;
+      trembleGroup.classList.add('terrified');
+      
+      // Character curses the player
+      const line = MISS_CURSES[Math.floor(Math.random() * MISS_CURSES.length)];
+      showSubtitle(line, 2200, true);
+
+      // Flick the aim dot off temporarily to represent panic
+      cursorDot.style.opacity = '0';
+      setTimeout(() => {
+        cursorDot.style.opacity = '1';
+        if (!gameOver && timeLeft / TOTAL_TIME >= 0.25 && charges > 1) {
+          trembleGroup.classList.remove('terrified');
+        }
+      }, 1500);
+    }
+
+    // Check game over by charges
+    if (!ghost.revealed && charges <= 0) {
+      gameOver = true;
+      setTimeout(() => {
+        triggerDeath('Out of charge', "Three clicks in the void. Three misses. Your batteries are cold, and you cannot see the dark closing in.");
+      }, 600);
+    }
+  }
+
+  // ---------------- CANVAS RENDER ENGINE ----------------
+
+  function updateCanvas() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const pivotX = w / 2;
+    const pivotY = h + 15;
+    const handLength = 195;
+    const flashAngleRad = (currentHandAngle - 90) * Math.PI / 180;
+    
+    let flashOpacity = 0;
+    let p1x, p1y, coneLength, halfSpread;
+    
+    // Draw elements only when flash is active
+    if (flashTimeRemaining > 0) {
+      flashOpacity = Math.min(1, flashTimeRemaining / 0.1); // fade out at end
+      
+      // 1. Draw volumetric light cone
+      coneLength = Math.max(window.innerWidth, window.innerHeight) * 1.3;
+      halfSpread = 0.13; // half angle in radians (about 7.5 deg spread)
+
+      p1x = flashOrigin.x;
+      p1y = flashOrigin.y;
+      const p2x = p1x + Math.cos(flashAngle - halfSpread) * coneLength;
+      const p2y = p1y + Math.sin(flashAngle - halfSpread) * coneLength;
+      const p3x = p1x + Math.cos(flashAngle + halfSpread) * coneLength;
+      const p3y = p1y + Math.sin(flashAngle + halfSpread) * coneLength;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(p1x, p1y);
+      ctx.lineTo(p2x, p2y);
+      ctx.lineTo(p3x, p3y);
+      ctx.closePath();
+      
+      const grad = ctx.createRadialGradient(p1x, p1y, 0, p1x, p1y, coneLength * 0.95);
+      grad.addColorStop(0, `rgba(255, 248, 225, ${0.9 * flashOpacity})`);
+      grad.addColorStop(0.12, `rgba(255, 235, 185, ${0.7 * flashOpacity})`);
+      grad.addColorStop(0.35, `rgba(255, 179, 71, ${0.35 * flashOpacity})`);
+      grad.addColorStop(0.65, `rgba(255, 179, 71, ${0.08 * flashOpacity})`);
+      grad.addColorStop(1, 'rgba(255, 179, 71, 0)');
+      
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.restore();
+
+      // 2. Draw Dust Motes inside the beam
+      ctx.save();
+      dustMotes.forEach(m => {
+        const dx = m.x - p1x;
+        const dy = m.y - p1y;
+        const d = Math.hypot(dx, dy);
+        if (d > coneLength) return;
+
+        const ang = Math.atan2(dy, dx);
+        let diff = ang - flashAngle;
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff)); // normalize -PI to PI
+        
+        if (Math.abs(diff) <= halfSpread) {
+          const distanceFade = 1 - d / coneLength;
+          const illumination = distanceFade * flashOpacity;
+          
+          ctx.beginPath();
+          ctx.arc(m.x, m.y, m.size, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255, 240, 205, ${m.baseOpacity * illumination})`;
+          ctx.shadowColor = 'rgba(255, 230, 180, 0.4)';
+          ctx.shadowBlur = 4;
+          ctx.fill();
+        }
+      });
+      ctx.restore();
+    } else {
+      // 1. Draw passive flickering UV probe beam
+      const upX = pivotX + handLength * Math.cos(flashAngleRad);
+      const upY = h + handLength * Math.sin(flashAngleRad);
+      const uvSpread = 0.09;
+      const uvLength = 550;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(upX, upY);
+      ctx.lineTo(upX + Math.cos(flashAngleRad - uvSpread) * uvLength, upY + Math.sin(flashAngleRad - uvSpread) * uvLength);
+      ctx.lineTo(upX + Math.cos(flashAngleRad + uvSpread) * uvLength, upY + Math.sin(flashAngleRad + uvSpread) * uvLength);
+      ctx.closePath();
+
+      // Flickering UV aura
+      const flickerFactor = 0.85 + Math.random() * 0.15;
+      const uvGrad = ctx.createRadialGradient(upX, upY, 0, upX, upY, uvLength);
+      uvGrad.addColorStop(0, `rgba(130, 80, 255, ${0.11 * flickerFactor})`);
+      uvGrad.addColorStop(0.4, `rgba(130, 80, 255, ${0.03 * flickerFactor})`);
+      uvGrad.addColorStop(1, "rgba(130, 80, 255, 0)");
+      ctx.fillStyle = uvGrad;
+      ctx.fill();
+      ctx.restore();
+
+      // 2. Draw ectoplasm footprints under UV light
+      ctx.save();
+      ghostFootsteps.forEach(f => {
+        const dx = f.x - upX;
+        const dy = f.y - upY;
+        const dist = Math.hypot(dx, dy);
+        if (dist > uvLength) return;
+
+        const ang = Math.atan2(dy, dx);
+        let diff = ang - flashAngleRad;
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+
+        if (Math.abs(diff) <= uvSpread) {
+          ctx.beginPath();
+          const stepGrad = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, 25);
+          
+          if (f.isGhost) {
+            // Bright toxic green for real ghost
+            stepGrad.addColorStop(0, `rgba(0, 255, 120, ${f.opacity * 0.45})`);
+            stepGrad.addColorStop(0.5, `rgba(0, 255, 120, ${f.opacity * 0.15})`);
+            stepGrad.addColorStop(1, 'rgba(0, 255, 120, 0)');
+          } else {
+            // Dimmer blue-purple for decoys
+            stepGrad.addColorStop(0, `rgba(130, 80, 255, ${f.opacity * 0.32})`);
+            stepGrad.addColorStop(0.5, `rgba(130, 80, 255, ${f.opacity * 0.08})`);
+            stepGrad.addColorStop(1, 'rgba(130, 80, 255, 0)');
+          }
+          
+          ctx.fillStyle = stepGrad;
+          ctx.arc(f.x, f.y, 25, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+      ctx.restore();
+    }
+
+    // 3. Draw Sonar expanded wave
+    if (sonarActive) {
+      ctx.save();
+      const edge = Math.max(window.innerWidth, window.innerHeight) * 1.25;
+      ctx.strokeStyle = `rgba(0, 255, 230, ${0.3 * (1 - sonarRadius / edge)})`;
+      ctx.lineWidth = 3.0;
+
+      // Echo glow
+      ctx.shadowColor = 'rgba(0, 255, 200, 0.45)';
+      ctx.shadowBlur = 12;
+
+      ctx.beginPath();
+      ctx.arc(pivotX, pivotY, sonarRadius, Math.PI, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 4. Draw entities (drawn independently of active flash so they can linger)
+    // Ghost Reveal (banish burn effect)
+    if (ghost && ghost.revealed && ghost.revealedTime > 0) {
+      ctx.save();
+      
+      let entityOpacity = Math.min(1, ghost.revealedTime / 0.4);
+      if (flashTimeRemaining > 0) {
+        entityOpacity *= (0.5 + 0.5 * flashOpacity);
+      }
+      ctx.globalAlpha = entityOpacity;
+      
+      ctx.shadowColor = 'rgba(255, 120, 50, 0.8)'; // orange fire glow as it burns
+      ctx.shadowBlur = 30 + (1.5 - ghost.revealedTime) * 35; // expands as it dies
+      
+      const shakeSize = (1.5 - ghost.revealedTime) * 20;
+      const gx = ghost.x + (Math.random() - 0.5) * shakeSize;
+      const gy = ghost.y + (Math.random() - 0.5) * shakeSize;
+
+      // Draw image
+      const gWidth = 200 + (1.5 - ghost.revealedTime) * 30; // expands slightly
+      const gHeight = 200 + (1.5 - ghost.revealedTime) * 30;
+      
+      ctx.filter = `brightness(${1 + (1.5 - ghost.revealedTime) * 2}) contrast(${1.5 + (1.5 - ghost.revealedTime)})`;
+      ctx.drawImage(ghostImage, gx - gWidth/2, gy - gHeight/2, gWidth, gHeight);
+
+      // Add hyper glowing red eyes
+      ctx.shadowColor = 'rgba(255, 25, 20, 1.0)';
+      ctx.shadowBlur = 20;
+      ctx.fillStyle = 'rgba(255, 45, 30, 0.95)';
+      ctx.beginPath();
+      ctx.arc(gx - 18, gy - 20, 5, 0, Math.PI * 2);
+      ctx.arc(gx + 16, gy - 20, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Draw light particles burst (sparks) from the ghost as it dies!
+      if (ghost.revealedTime < 1.3) {
+        const sparkCount = 8;
+        ctx.fillStyle = 'rgba(255, 200, 100, 0.8)';
+        for (let i = 0; i < sparkCount; i++) {
+          const sx = gx + (Math.random() - 0.5) * 120;
+          const sy = gy + (Math.random() - 0.5) * 120;
+          ctx.beginPath();
+          ctx.arc(sx, sy, 1.5 + Math.random() * 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+
+    // Sonar Ping Markers (including cluttered fake markers)
+    [ghost, ...decoys, ...fakeSonarMarkers].forEach(ent => {
+      if (ent && ent.pingMarkerTime > 0) {
+        ctx.save();
+        const maxDuration = 0.45;
+        const alpha = ent.pingMarkerTime / maxDuration;
+
+        if (ent.isGhost) {
+          // Red glitched warning ping - expanding sound ring that vanishes rapidly
+          ctx.strokeStyle = `rgba(255, 60, 60, ${alpha})`;
+          ctx.shadowColor = 'rgba(255, 60, 60, 0.7)';
+          ctx.shadowBlur = 10;
+
+          // Radius expands as the ping fades out
+          const r = 10 + 35 * (1 - alpha);
+          ctx.lineWidth = 2.0;
+          ctx.beginPath();
+          ctx.arc(ent.x, ent.y, r, 0, Math.PI * 2);
+          ctx.stroke();
+
+          // Add a few tiny glitched noise speckles nearby to give a rough echo feel
+          ctx.fillStyle = `rgba(255, 60, 60, ${alpha * 0.8})`;
+          for (let i = 0; i < 3; i++) {
+            const sx = ent.x + (Math.random() - 0.5) * 35;
+            const sy = ent.y + (Math.random() - 0.5) * 35;
+            ctx.fillRect(sx, sy, 2, 2);
+          }
+        } else {
+          // Faint, safe gray echo ping
+          ctx.strokeStyle = `rgba(220, 220, 220, ${alpha * 0.6})`;
+          ctx.shadowColor = 'rgba(220, 220, 220, 0.3)';
+          ctx.shadowBlur = 5;
+
+          const r = 8 + 25 * (1 - alpha);
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(ent.x, ent.y, r, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+    });
+
+    // Decoy reveals
+    decoys.forEach(d => {
+      if (d.revealed && d.revealedTime > 0) {
+        ctx.save();
+        let entityOpacity = Math.min(0.4, d.revealedTime / 0.4);
+        if (flashTimeRemaining > 0) {
+          entityOpacity *= flashOpacity;
+        }
+        ctx.globalAlpha = entityOpacity;
+        
+        ctx.filter = 'grayscale(100%) brightness(0.1) blur(4px)';
+        const gx = d.x + (Math.random() - 0.5) * 3;
+        const gy = d.y + (Math.random() - 0.5) * 3;
+        
+        const size = 180;
+        ctx.drawImage(ghostImage, gx - size/2, gy - size/2, size, size);
+        ctx.restore();
+      }
+    });
+  }
+
+  // ---------------- DEATH & WIN TRANSITIONS ----------------
+
+  function triggerDeath(title, sub) {
+    gameOver = true;
+    cleanupRunningAudio();
+    playJumpscareScream();
+
+    // Visual jumpscare triggers
+    shakeEl.classList.add('shaking');
+    jumpscare.classList.add('show');
+    
+    // Subtitle shriek
+    showSubtitle("AAAARRGGGGHH!!!!", 1500, true);
+
+    setTimeout(() => {
+      shakeEl.classList.remove('shaking');
+      jumpscare.classList.remove('show');
+      bloodOverlay.classList.add('show');
+      spawnBloodDrops(16);
+    }, 550);
+
+    setTimeout(() => {
+      msgEyebrow.textContent = 'Round Over';
+      msgTitle.textContent = title;
+      msgTitle.className = 'msg-title lose';
+      msgSub.textContent = sub;
+      msgBtn.textContent = 'Try Again';
+      msgBtn.className = 'msg-btn lose-btn';
+      message.classList.add('show');
+    }, 1500);
+  }
+
+  let cowardActive = false;
+  function playCowardGrowl() {
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+    
+    cleanupRunningAudio();
+    
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    osc1.type = 'sawtooth';
+    osc2.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(65, now);
+    osc1.frequency.linearRampToValueAtTime(15, now + 1.8);
+    osc2.frequency.setValueAtTime(66.5, now);
+    osc2.frequency.linearRampToValueAtTime(16, now + 1.8);
+    
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(110, now);
+    lp.frequency.exponentialRampToValueAtTime(40, now + 1.8);
+    
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.55, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.8);
+    
+    osc1.connect(lp);
+    osc2.connect(lp);
+    lp.connect(gain).connect(ctx.destination);
+    
+    osc1.start(now);
+    osc1.stop(now + 1.9);
+    osc2.start(now);
+    osc2.stop(now + 1.9);
+  }
+
+  function triggerCowardEvent() {
+    if (cowardActive) return;
+    cowardActive = true;
+    
+    const banner = document.getElementById('coward-banner');
+    banner.style.display = 'flex';
+    shakeEl.classList.add('shaking');
+    
+    playCowardGrowl();
+    
+    setTimeout(() => {
+      banner.style.display = 'none';
+      shakeEl.classList.remove('shaking');
+      cowardActive = false;
+      
+      // Resume wind loops if game is still active
+      if (gameStarted && !gameOver) {
+        startAmbientWind();
+      }
+    }, 2500);
+  }
+
+  function playSonarPing() {
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+    
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(850, now);
+    osc.frequency.exponentialRampToValueAtTime(140, now + 1.2);
+    
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(900, now);
+    
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+    
+    osc.connect(filter).connect(gain).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 1.3);
+  }
+
+  function playEntityPing(pan, isGhost) {
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+    const panner = ctx.createStereoPanner();
+    panner.pan.setValueAtTime(pan, now);
+    
+    const osc = ctx.createOscillator();
+    osc.type = isGhost ? 'sawtooth' : 'sine';
+    osc.frequency.setValueAtTime(isGhost ? 240 : 640, now);
+    
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(isGhost ? 380 : 800, now);
+    
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(isGhost ? 0.08 : 0.05, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+    
+    osc.connect(filter).connect(gain).connect(panner).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.36);
+  }
+
+  let activeQuestionIndex = 0;
+  let hasLoveTested = false;
+  
+  const QUESTIONS = [
+    { text: "CONFIRMATION: Spell 'please'", answer: "please", desc: "Type the letters exactly in lowercase." },
+    { text: "GHOST PROTOCOL: Spell COWARD backwards", answer: "drawoc", desc: "Reverse the characters of coward." },
+    { text: "Who is a useless piece of trash? (type 'me')", answer: "me", desc: "Spell your own identity." }
+  ];
+
+
+
+  function playBrokenSonarSound() {
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+    
+    // High-pitched clank with rapid decay
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(800, now);
+    osc.frequency.exponentialRampToValueAtTime(100, now + 0.15);
+    
+    const gain1 = ctx.createGain();
+    gain1.gain.setValueAtTime(0.35, now);
+    gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
+    
+    osc.connect(gain1).connect(ctx.destination);
+    
+    // Noise burst hiss
+    const bufferSize = ctx.sampleRate * 0.25;
+    const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufferSize, 2);
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = noiseBuffer;
+    
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(1200, now);
+    filter.Q.setValueAtTime(3.0, now);
+    
+    const gain2 = ctx.createGain();
+    gain2.gain.setValueAtTime(0.25, now);
+    gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.25);
+    
+    noise.connect(filter).connect(gain2).connect(ctx.destination);
+    
+    osc.start(now);
+    osc.stop(now + 0.16);
+    noise.start(now);
+    noise.stop(now + 0.26);
+  }
+
+  function playScaryFeedbackScream() {
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+    
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    osc1.type = 'sawtooth';
+    osc2.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(80, now);
+    osc1.frequency.linearRampToValueAtTime(1400, now + 0.6);
+    osc2.frequency.setValueAtTime(85, now);
+    osc2.frequency.linearRampToValueAtTime(1420, now + 0.6);
+    
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(2000, now);
+    
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(1.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.65);
+    
+    osc1.connect(lp);
+    osc2.connect(lp);
+    lp.connect(gain).connect(ctx.destination);
+    
+    osc1.start(now);
+    osc1.stop(now + 0.7);
+    osc2.start(now);
+    osc2.stop(now + 0.7);
+  }
+
+  function handleSpellingAnswer(userInput) {
+    const termOverlay = document.getElementById('term-overlay');
+    const termInput = document.getElementById('termInput');
+    const text = userInput.trim().toLowerCase();
+    
+    // Check if we are answering the final Love Score app check
+    if (activeQuestionIndex === 999) {
+      if (text === "yes" || text === "y") {
+        termOverlay.style.display = 'none';
+        
+        // 20% Success Chance
+        if (Math.random() < 0.20) {
+          showSubtitle("Sonar calibrator aligned!", 1500);
+          executeSonarSwipe();
+        } else {
+          // Sonar broke!
+          sonarBroken = true;
+          playBrokenSonarSound();
+          
+          const failTexts = [
+            "GODDAMMIT ASSHOLE! This piece of junk is broken!",
+            "Fucking piece of trash is broken! It clanked!",
+            "Are you kidding me?! Work, you useless garbage!"
+          ];
+          const randomFail = failTexts[Math.floor(Math.random() * failTexts.length)];
+          showSubtitle(randomFail, 3500, true);
+        }
+      } else if (text === "no" || text === "n") {
+        playScaryFeedbackScream();
+        showSubtitle("WHAT?! NO?! YOU INSOLENT SHITTY GAMER! SEARCH 'HEARTPRINT' ON GOOGLE PLAY STORE AND CHECK YOUR LOVE SCORE NOW!", 6500, true);
+        termOverlay.style.display = 'none';
+      } else {
+        playScaryFeedbackScream();
+        showSubtitle("CAN'T YOU TYPE YES OR NO?! YOU INCOMPETENT SHITTY GAMER!", 3500, true);
+        termOverlay.style.display = 'none';
+      }
+      return;
+    }
+    
+    // Check normal questions
+    const currentQ = QUESTIONS[activeQuestionIndex];
+    
+    let isCorrect = (text === currentQ.answer);
+    
+    if (isCorrect) {
+      
+      // Redirect to Love Score question
+      activeQuestionIndex = 999;
+      document.getElementById('termPrompt').textContent = "LOVE SCORE AUTH";
+      document.getElementById('termDesc').textContent = "Have you tried HeartPrint to check your love score? (yes / no)";
+      termInput.value = "";
+      termInput.focus();
+    } else {
+      // Wrong answer - screech and fail
+      playScaryFeedbackScream();
+      
+      let curseMessage = "WRONG ANSWER! YOU INCOMPETENT COWARD SHITTY GAMER!";
+      if (currentQ.answer === "me") {
+        curseMessage = "STOP DENYING YOUR TRASH STATUS! PING REJECTED!";
+      }
+      
+      showSubtitle(curseMessage, 3000, true);
+      termOverlay.style.display = 'none';
+    }
+  }
+
+  function triggerSonar() {
+    if (gameOver || !gameStarted) return;
+    
+    if (sonarBroken) {
+      showSubtitle("Sonar is BROKEN! Stand still and press 'R' to calibrate wires!", 2200, true);
+      return;
+    }
+    if (sonarCooldown > 0) return;
+    
+    const termOverlay = document.getElementById('term-overlay');
+    const termPrompt = document.getElementById('termPrompt');
+    const termDesc = document.getElementById('termDesc');
+    const termInput = document.getElementById('termInput');
+    
+    // Select a random question index from list
+    activeQuestionIndex = Math.floor(Math.random() * QUESTIONS.length);
+    const q = QUESTIONS[activeQuestionIndex];
+    
+    termPrompt.textContent = "DECRYPTION CODE REQUIRED";
+    termDesc.textContent = `${q.text} (${q.desc})`;
+    termInput.value = "";
+    
+    termOverlay.style.display = 'flex';
+    termInput.focus();
+  }
+
+  function executeSonarSwipe() {
+    sonarActive = true;
+    sonarRadius = 0;
+    sonarCooldown = 9.0; // 9 seconds recharge
+    
+    playSonarPing();
+    
+    // Spawn cluttered fake rings to block easy targeting
+    fakeSonarMarkers = [];
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    
+    // 4 fake gray decoys
+    for (let i = 0; i < 4; i++) {
+      fakeSonarMarkers.push({
+        x: Math.random() * w,
+        y: h * 0.15 + Math.random() * h * 0.45,
+        isGhost: false,
+        pingMarkerTime: 0.45
+      });
+    }
+    // 2 fake red ghost circles
+    for (let i = 0; i < 2; i++) {
+      fakeSonarMarkers.push({
+        x: Math.random() * w,
+        y: h * 0.15 + Math.random() * h * 0.45,
+        isGhost: true,
+        pingMarkerTime: 0.45
+      });
+    }
+    
+    // Teleport the ghost instantly so the warning marks are where it WAS!
+    if (ghost) {
+      ghost.x = Math.random() * w;
+      ghost.y = h * 0.2 + Math.random() * h * 0.4;
+      const speed = GHOST_VELOCITY_RANGE.min + 25 + Math.random() * 25;
+      ghost.vx = (Math.random() > 0.5 ? 1 : -1) * speed;
+      ghost.vy = (Math.random() - 0.5) * 20;
+    }
+  }
+
+  function playEMFTick() {
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1400, now);
+    osc.frequency.exponentialRampToValueAtTime(100, now + 0.004);
+    
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.012, now); // very soft click
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.004);
+    
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.005);
+  }
+
+  function handleEMFDetector() {
+    if (gameOver || !gameStarted || !ghost) return;
+    const nowCtx = getCtx().currentTime;
+    
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const pivotX = w / 2;
+    const pivotY = h + 15;
+
+    // Angle to ghost from pivot
+    const dx = ghost.x - pivotX;
+    const dy = ghost.y - pivotY;
+    const angleToGhostRad = Math.atan2(dy, dx);
+    let angleToGhostDeg = (angleToGhostRad + Math.PI / 2) * 180 / Math.PI;
+    angleToGhostDeg = Math.max(-68, Math.min(68, angleToGhostDeg));
+
+    // Difference in degrees between flashlight aim and ghost
+    const diff = Math.abs(currentHandAngle - angleToGhostDeg);
+
+    let blinkInterval = 0; // solid state
+    let ledColor = '#b3151a'; // solid red
+
+    // Introduce panic jitter when time is low (< 35%)
+    let panicJitter = 0;
+    if (timeLeft / TOTAL_TIME < 0.35) {
+      panicJitter = (Math.random() - 0.5) * 5.0; // +/- 2.5 degrees of hand shiver noise!
+    }
+    const finalDiff = diff + panicJitter;
+
+    if (finalDiff < 4.0) {
+      blinkInterval = 0.12; // 120ms (rapid EMF lock!)
+      ledColor = '#00ff66'; // bright toxic green
+    } else if (diff < 18) {
+      blinkInterval = 0.38; // 380ms (approaching EMF)
+      ledColor = '#ff9900'; // warning amber
+    } else if (diff < 32) {
+      blinkInterval = 0.85; // 850ms (weak EMF)
+      ledColor = '#ff3300'; // slow hot orange
+    } else {
+      blinkInterval = 0; // solid
+      ledColor = '#5c0a0a'; // solid dim red
+    }
+
+    if (blinkInterval > 0) {
+      if (nowCtx - lastEMFBlinkTime > blinkInterval) {
+        emfLEDState = !emfLEDState;
+        switchLED.setAttribute('fill', emfLEDState ? ledColor : '#0a0703'); // blink on/off
+        
+        // Also blink the bulb slightly if it is off to give a very faint lens flicker clue!
+        const bulbFace = document.getElementById('bulbFace');
+        if (bulbFace && flashTimeRemaining <= 0) {
+          bulbFace.setAttribute('fill', emfLEDState ? 'rgba(255,179,71,0.06)' : '#1a140c');
+        }
+
+        if (emfLEDState) {
+          playEMFTick();
+        }
+        lastEMFBlinkTime = nowCtx;
+      }
+    } else {
+      // Solid color
+      switchLED.setAttribute('fill', ledColor);
+      const bulbFace = document.getElementById('bulbFace');
+      if (bulbFace && flashTimeRemaining <= 0) {
+        bulbFace.setAttribute('fill', '#1a140c');
+      }
+    }
+  }
+
+  function winGame() {
+    msgEyebrow.textContent = 'Survived';
+    msgTitle.textContent = 'Banished';
+    msgTitle.className = 'msg-title win';
+    msgSub.textContent = 'The heavy footsteps recede. The wind and radio static quiet down. For a moment... you breathe.';
+    msgBtn.textContent = 'Play Again';
+    msgBtn.className = 'msg-btn';
+    message.classList.add('show');
+  }
+
+  // ---------------- MAIN LOOP ----------------
+
+  function gameLoop(timestamp) {
+    if (!lastFrameTime) lastFrameTime = timestamp;
+    let dt = (timestamp - lastFrameTime) / 1000;
+    if (dt > 0.1) dt = 0.1; // clamp delta
+    lastFrameTime = timestamp;
+
+    if (gameStarted && !gameOver) {
+      // 1. Time countdown
+      timeLeft -= dt;
+      const pct = Math.max(0, (timeLeft / TOTAL_TIME) * 100);
+      clockFill.style.width = pct + '%';
+      
+      // Escalating danger visual indicators
+      if (pct < 25) {
+        clockBar.classList.add('danger');
+        vignette.classList.add('tight');
+      } else {
+        clockBar.classList.remove('danger');
+      }
+
+      // Shiver mouse guide dot when running out of time
+      if (pct < 40) {
+        const guideOffset = (1 - pct/40) * 8;
+        cursorDot.style.margin = `${(Math.random() - 0.5) * guideOffset}px ${(Math.random() - 0.5) * guideOffset}px`;
+        // Fade the dot slightly
+        cursorDot.style.opacity = `${0.1 + (pct/40) * 0.45}`;
+      } else {
+        cursorDot.style.margin = '0px';
+        cursorDot.style.opacity = '1';
+      }
+
+      renderCeilingBlood();
+
+      if (timeLeft <= 0) {
+        gameOver = true;
+        triggerDeath('The dark took you', 'The static noise surrounded you from all sides. Cold fingers touched your neck before you could turn the switch.');
+      }
+
+      // 2. Entity updates
+      updateEntities(dt);
+      
+      // Decrement entity reveals and ping markers
+      if (ghost.revealedTime > 0) ghost.revealedTime -= dt;
+      if (ghost.pingMarkerTime > 0) ghost.pingMarkerTime -= dt;
+      decoys.forEach(d => {
+        if (d.revealedTime > 0) d.revealedTime -= dt;
+        if (d.pingMarkerTime > 0) d.pingMarkerTime -= dt;
+      });
+
+      // 3. Audio controllers
+      handleHeartbeat();
+      handleMutterings();
+      handleAmbientMoans();
+
+      // 4. Flash cone timer
+      if (flashTimeRemaining > 0) {
+        flashTimeRemaining -= dt;
+      }
+      
+      // Update dust motes physics
+      updateDustMotes(dt);
+
+      // 5. Forearm aiming
+      updateFlashlightRotation();
+
+      // EMF Radar Clue
+      handleEMFDetector();
+
+      // Sonar expansion & intersection checking
+      if (sonarActive) {
+        const pivotX = window.innerWidth / 2;
+        const pivotY = window.innerHeight + 15;
+        
+        sonarRadius += 650 * dt; // wave speed: 650px/sec
+        
+        [ghost, ...decoys].forEach(ent => {
+          if (ent && !ent.pingTriggered) {
+            const dist = Math.hypot(ent.x - pivotX, ent.y - pivotY);
+            if (sonarRadius >= dist) {
+              ent.pingMarkerTime = 0.45; // Ping marker visible on canvas for 450ms
+              ent.pingTriggered = true;
+              
+              // Play spatialized echo beep
+              const pan = Math.max(-1, Math.min(1, (ent.x / window.innerWidth) * 2 - 1));
+              playEntityPing(pan, ent.isGhost);
+            }
+          }
+        });
+
+        // Cap sonar expansion
+        const maxDiagonal = Math.hypot(window.innerWidth, window.innerHeight);
+        if (sonarRadius > maxDiagonal) {
+          sonarActive = false;
+          [ghost, ...decoys].forEach(ent => {
+            if (ent) ent.pingTriggered = false;
+          });
+        }
+      }
+
+      // Sonar state manager
+      if (sonarBroken) {
+        if (repairingSonar) {
+          repairProgress += dt;
+          const pct = Math.min(100, Math.ceil((repairProgress / 5.0) * 100));
+          document.getElementById('sonarState').textContent = `SONAR: REPAIRING (${pct}%)`;
+          document.getElementById('sonarState').style.color = '#ff9900';
+          
+          if (repairProgress >= 5.0) {
+            sonarBroken = false;
+            repairingSonar = false;
+            executeSonarSwipe(); // Automatically triggers sonar sweep!
+            showSubtitle("Sonar system repaired! Sweep triggered!", 2000);
+          }
+        } else {
+          document.getElementById('sonarState').textContent = `SONAR: BROKEN (PRESS R)`;
+          document.getElementById('sonarState').style.color = 'var(--blood-bright)';
+        }
+      } else if (sonarCooldown > 0) {
+        sonarCooldown -= dt;
+        const pct = Math.ceil((sonarCooldown / 9.0) * 100);
+        document.getElementById('sonarState').textContent = `SONAR: RECHARGING (${pct}%)`;
+        document.getElementById('sonarState').style.color = 'var(--blood-bright)';
+      } else {
+        document.getElementById('sonarState').textContent = `SONAR: READY`;
+        document.getElementById('sonarState').style.color = '#00ffcc';
+      }
+
+
+
+      // Decay fake markers
+      fakeSonarMarkers.forEach(m => {
+        if (m.pingMarkerTime > 0) m.pingMarkerTime -= dt;
+      });
+
+      // 6. Draw flashlight beam and reveals
+      updateCanvas();
+    }
+
+    requestAnimationFrame(gameLoop);
+  }
+
+  // ---------------- EVENT LISTENERS ----------------
+
+  // Mouse down trigger: Left-click (Flash), Right-click (Sonar)
+  stage.addEventListener('mousedown', (e) => {
+    if (!gameStarted || gameOver) return;
+
+    if (e.button === 0) {
+      // Left-Click: Banish/Flash
+      if (charges > 0 && flashTimeRemaining <= 0) {
+        fireFlash();
+      }
+    } else if (e.button === 2) {
+      // Right-Click: Sonar radar
+      triggerSonar();
+    }
+  });
+
+  // Block context menu globally so Right-Click menu doesn't interrupt play
+  window.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+  });
+
+  // Try again button click
+  msgBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    resetGame();
+  });
+
+  // Intro stage elements
+  const initAudioBtn = document.getElementById('initAudioBtn');
+  const introStage1 = document.getElementById('intro-stage1');
+  const introStage2 = document.getElementById('intro-stage2');
+
+  initAudioBtn.addEventListener('click', () => {
+    // Resume browser context
+    const ctx = getCtx();
+    if (ctx.resume) ctx.resume();
+
+    initAudioBtn.textContent = "Listening to the dark frequencies...";
+    initAudioBtn.disabled = true;
+
+    preloadSounds().then(() => {
+      // Start looping Ghost band.mp3 for the menu screen!
+      startAmbientMusic(true);
+
+      // Transition to rules screen (stage 2)
+      introStage1.style.display = 'none';
+      introStage2.style.display = 'flex';
+      setTimeout(() => {
+        introStage2.style.opacity = '1';
+      }, 50);
+    });
+  });
+
+  // Intro Start Button Click - triggers the story sequence!
+  document.getElementById('startBtn').addEventListener('click', () => {
+    document.getElementById('intro').style.display = 'none';
+    startStorySequence();
+  });
+
+  // Story Sequence Slideshow Configuration
+  const STORY_SLIDES = [
+    { text: "It was a <span>simple exploration mission</span>. An abandoned bunker. Cold stone walls. Silent machinery.", sound: "moan1" },
+    { text: "But the doors sealed behind us. The generator died. The dark rushed in, and with it... <span>something else</span>.", sound: "wind" },
+    { text: "It feeds on sound. It walks with a heavy thud, dragging its presence. Decoys echo from the shadows to trick you.", sound: "moan3" },
+    { text: "I have <span>three flashlight battery charges</span> left. One flashlight switch. And a sonar sweep calibrator. If I flash the darkness and nothing is there... I waste the battery.", sound: "breath" },
+    { text: "Wait... did you hear that? It is right here. <span>PLEASE DON'T DIE.</span>", sound: "scream" }
+  ];
+  let currentStorySlide = 0;
+
+  function startStorySequence() {
+    const storyOverlay = document.getElementById('story-overlay');
+    storyOverlay.style.display = 'flex';
+    currentStorySlide = 0;
+    showStorySlide();
+  }
+
+  function showStorySlide() {
+    const content = document.getElementById('storyContent');
+    const slide = STORY_SLIDES[currentStorySlide];
+    
+    content.style.opacity = '0';
+    setTimeout(() => {
+      content.innerHTML = slide.text;
+      content.style.opacity = '1';
+      
+      // Play a creepy spatialized drone sound for this slide
+      playStoryScarySound(slide.sound);
+    }, 400);
+  }
+
+  function playStoryScarySound(soundKey) {
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+    
+    if (soundKey === 'scream') {
+      playJumpscareScream();
+      return;
+    }
+    
+    if (audioBuffers[soundKey]) {
+      const src = ctx.createBufferSource();
+      src.buffer = audioBuffers[soundKey];
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.5, now);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + Math.min(3.5, src.buffer.duration));
+      src.connect(g).connect(ctx.destination);
+      src.start(now);
+    } else {
+      // Procedural synthetic creepy hum
+      const osc = ctx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(55, now);
+      
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(90, now);
+      
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.12, now);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 2.5);
+      
+      osc.connect(filter).connect(g).connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 2.6);
+    }
+  }
+
+  // Story progression button bindings
+  document.getElementById('storyNextBtn').addEventListener('click', () => {
+    currentStorySlide++;
+    if (currentStorySlide < STORY_SLIDES.length) {
+      showStorySlide();
+    } else {
+      endStoryAndStartGame();
+    }
+  });
+
+  document.getElementById('storySkipBtn').addEventListener('click', () => {
+    endStoryAndStartGame();
+  });
+
+  function endStoryAndStartGame() {
+    document.getElementById('story-overlay').style.display = 'none';
+    resetGame();
+    requestAnimationFrame(gameLoop);
+  }
+
+  // Handle Terminal spelling input submit
+  document.getElementById('termInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const inputVal = e.target.value;
+      handleSpellingAnswer(inputVal);
+    }
+  });
+
+  // Listen for Spacebar to trigger sonar or R to repair
+  window.addEventListener('keydown', (e) => {
+    // If the terminal modal is open, let the user type without triggering shortcuts!
+    const termOverlay = document.getElementById('term-overlay');
+    if (termOverlay.style.display === 'flex') {
+      if (e.code === 'Escape') {
+        termOverlay.style.display = 'none';
+        showSubtitle("Calibration cancelled.", 1500);
+      }
+      return;
+    }
+    
+    if (e.code === 'Space' || e.key === ' ') {
+      e.preventDefault(); // prevent browser scrolling when pressing Space
+      triggerSonar();
+    } else if (e.code === 'KeyR' || e.key === 'r' || e.key === 'R') {
+      if (sonarBroken && !repairingSonar && !gameOver && gameStarted) {
+        repairingSonar = true;
+        repairProgress = 0;
+        showSubtitle("Fixing sonar wires... do not move!", 2000);
+      }
+
+    } else if (e.code === 'Escape' || e.key === 'Escape') {
+      e.preventDefault();
+      triggerCowardEvent();
+    }
+  });
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>404 — Lost in the Dark | BLACKOUT</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="5; url=/Blackout/">
+<link rel="icon" type="image/png" href="/Blackout/assets/images/Ghost.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Eater&family=Cormorant+Garamond:ital@1&family=Special+Elite&display=swap');
+
+  * { box-sizing: border-box; margin: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    background: #020102;
+    font-family: ui-monospace, monospace;
+    overflow: hidden;
+  }
+  body {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center;
+    background: radial-gradient(circle at 50% 50%, #070507 0%, #020102 90%);
+    box-shadow: inset 0 0 250px 100px rgba(0,0,0,0.98);
+  }
+  .eyebrow {
+    font-size: 11px; letter-spacing: 0.35em;
+    color: #5c0a0a; text-transform: uppercase; margin-bottom: 18px;
+    animation: flicker 3s infinite;
+  }
+  @keyframes flicker {
+    0%, 95%, 100% { opacity: 1; }
+    96% { opacity: 0.1; }
+    97% { opacity: 1; }
+    98% { opacity: 0.05; }
+    99% { opacity: 1; }
+  }
+  h1 {
+    font-family: 'Eater', serif; font-weight: 400;
+    font-size: 120px; color: #e8e2d6; margin: 0;
+    line-height: 0.9; letter-spacing: 0.02em;
+    text-shadow: 0 0 45px rgba(179,21,26,0.4);
+  }
+  h1 span { color: #b3151a; text-shadow: 0 0 24px rgba(179,21,26,0.7); }
+  p {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-style: italic; font-size: 19px;
+    color: #6e685e; max-width: 440px;
+    line-height: 1.8; margin: 24px 0 38px 0;
+  }
+  .countdown {
+    font-size: 11px; letter-spacing: 0.22em;
+    color: #5a3f1c; margin-bottom: 22px; text-transform: uppercase;
+  }
+  a {
+    cursor: pointer; background: transparent;
+    border: 1px solid #5a3f1c; color: #ffb347;
+    font-family: inherit; font-size: 11px;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    padding: 12px 26px; text-decoration: none;
+    transition: all 0.2s ease;
+    display: inline-block;
+  }
+  a:hover { border-color: #ffb347; background: rgba(255,179,71,0.08); }
+</style>
+</head>
+<body>
+  <div class="eyebrow">Error 404 — Page Not Found</div>
+  <h1>BLAC<span>K</span>OUT</h1>
+  <p>You wandered into the wrong corridor. The dark has no mercy for the lost.</p>
+  <div class="countdown" id="countdown">Returning to safety in 5 seconds...</div>
+  <a href="/Blackout/">Return to the Game</a>
+
+  <script>
+    let s = 5;
+    const el = document.getElementById('countdown');
+    const t = setInterval(() => {
+      s--;
+      el.textContent = `Returning to safety in ${s} second${s !== 1 ? 's' : ''}...`;
+      if (s <= 0) { clearInterval(t); window.location.href = '/Blackout/'; }
+    }, 1000);
+  </script>
+</body>
+</html>
