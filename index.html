@@ -362,6 +362,52 @@
     box-shadow: 0 0 15px rgba(179,21,26,0.8);
     border-color: var(--blood-hot);
   }
+
+  /* ---------- MOBILE CONTROLS ---------- */
+  #mobile-controls {
+    display: none;
+    position: absolute;
+    bottom: 30px;
+    left: 20px;
+    right: 20px;
+    z-index: 60;
+    justify-content: space-between;
+    pointer-events: none;
+  }
+  .mob-btn {
+    pointer-events: auto;
+    background: rgba(2, 1, 2, 0.65);
+    border: 1px solid var(--amber-dim);
+    color: var(--amber);
+    font-family: 'Special Elite', Courier, monospace;
+    font-size: 16px;
+    padding: 16px 24px;
+    border-radius: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    box-shadow: 0 0 15px rgba(0,0,0,0.8);
+    backdrop-filter: blur(4px);
+    transition: all 0.1s ease;
+  }
+  .mob-btn:active {
+    background: rgba(255, 179, 71, 0.2);
+    border-color: var(--amber);
+    transform: scale(0.95);
+  }
+  .mob-btn.sonar {
+    border-color: #008877;
+    color: #00ffcc;
+  }
+  .mob-btn.sonar:active {
+    background: rgba(0, 255, 204, 0.2);
+    border-color: #00ffcc;
+  }
+  
+  @media (hover: none) and (pointer: coarse) {
+    #mobile-controls {
+      display: flex;
+    }
+  }
 </style>
 </head>
 <body>
@@ -530,6 +576,11 @@
 </div>
 
 <div id="cursor-dot"></div>
+
+<div id="mobile-controls">
+  <button class="mob-btn" id="mobFlashBtn">⚡ FLASH</button>
+  <button class="mob-btn sonar" id="mobSonarBtn">📡 SONAR</button>
+</div>
 
 <div id="message">
   <div class="msg-eyebrow" id="msgEyebrow">Round Over</div>
@@ -1294,14 +1345,34 @@
   let mouseY = window.innerHeight / 2;
   let currentHandAngle = 0;
 
-  document.addEventListener('mousemove', (e) => {
-    mouseX = e.clientX;
-    mouseY = e.clientY;
-    
-    // Position the aim laser guide dot
+  function updateCursorPos(x, y) {
+    mouseX = x;
+    mouseY = y;
     cursorDot.style.left = mouseX + 'px';
     cursorDot.style.top = mouseY + 'px';
+  }
+
+  document.addEventListener('mousemove', (e) => {
+    updateCursorPos(e.clientX, e.clientY);
   });
+
+  // Touch aiming for mobile
+  document.addEventListener('touchstart', (e) => {
+    if (e.touches.length > 0) {
+      updateCursorPos(e.touches[0].clientX, e.touches[0].clientY);
+    }
+  }, {passive: false});
+
+  document.addEventListener('touchmove', (e) => {
+    if (e.touches.length > 0) {
+      updateCursorPos(e.touches[0].clientX, e.touches[0].clientY);
+    }
+    // Prevent scrolling while aiming, unless typing in terminal
+    const termOverlay = document.getElementById('term-overlay');
+    if (termOverlay && termOverlay.style.display !== 'flex') {
+      e.preventDefault();
+    }
+  }, {passive: false});
 
   // Init dust motes
   function initDustMotes() {
@@ -2857,6 +2928,21 @@
   // Block context menu globally so Right-Click menu doesn't interrupt play
   window.addEventListener('contextmenu', (e) => {
     e.preventDefault();
+  });
+
+  // Mobile button triggers
+  document.getElementById('mobFlashBtn').addEventListener('touchstart', (e) => {
+    e.preventDefault(); // prevent mouse emulation
+    if (gameStarted && !gameOver && charges > 0 && flashTimeRemaining <= 0) {
+      fireFlash();
+    }
+  });
+
+  document.getElementById('mobSonarBtn').addEventListener('touchstart', (e) => {
+    e.preventDefault(); // prevent mouse emulation
+    if (gameStarted && !gameOver) {
+      triggerSonar();
+    }
   });
 
   // Try again button click
