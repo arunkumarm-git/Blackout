@@ -1650,18 +1650,40 @@
     }
   }
 
-  // ---------------- GHOST SPATIAL WHISPER TAUNTS ----------------
-  // Phrases are represented as syllable-duration arrays (in seconds).
-  // Each entry drives a burst of noise-formant synthesis that sounds like a whispered word.
+
+
+  // Ghost taunts — text spoken by SpeechSynthesis + atmospheric HRTF noise
   const GHOST_TAUNTS = [
-    { label: "I'm behind you",       syllables: [0.12, 0.10, 0.18, 0.14, 0.16] },
-    { label: "Turn around",           syllables: [0.15, 0.13, 0.18, 0.14] },
-    { label: "Don't look",            syllables: [0.14, 0.10, 0.16] },
-    { label: "I can see you",         syllables: [0.11, 0.09, 0.14, 0.10, 0.16] },
-    { label: "You can't hide",        syllables: [0.13, 0.09, 0.14, 0.16] },
-    { label: "Come to me",            syllables: [0.14, 0.10, 0.15] },
-    { label: "Why are you running?",  syllables: [0.10, 0.08, 0.13, 0.12, 0.16, 0.18] }
+    { text: "I am behind you",       syllableCount: 5 },
+    { text: "Turn around",           syllableCount: 3 },
+    { text: "Do not look",           syllableCount: 3 },
+    { text: "I can see you",         syllableCount: 4 },
+    { text: "You cannot hide",       syllableCount: 4 },
+    { text: "Come to me",            syllableCount: 3 },
+    { text: "Why are you running",   syllableCount: 5 },
+    { text: "I am right here",       syllableCount: 4 },
+    { text: "You will not escape",   syllableCount: 5 },
+    { text: "Look behind you",       syllableCount: 4 }
   ];
+
+  // Pre-select the best available voice for creepiness
+  let _ghostVoice = null;
+  function getGhostVoice() {
+    if (_ghostVoice) return _ghostVoice;
+    const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+    if (!voices.length) return null;
+    const prefer = ['Microsoft David', 'Google UK English Male', 'Daniel', 'Alex'];
+    for (const name of prefer) {
+      const found = voices.find(v => v.name.includes(name));
+      if (found) { _ghostVoice = found; return found; }
+    }
+    _ghostVoice = voices.find(v => v.lang && v.lang.startsWith('en')) || voices[0];
+    return _ghostVoice;
+  }
+  if (window.speechSynthesis) {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged = () => { _ghostVoice = null; getGhostVoice(); };
+  }
 
   // Ghost spatial positions for taunts: [x, y, z] in 3D audio space.
   // Negative Z = behind the listener. We keep |x| varied for diagonal.
@@ -1678,21 +1700,20 @@
   function playGhostWhisper(taunt, pos) {
     const ctx = getCtx();
     const now = ctx.currentTime;
+    const totalDur = taunt.syllableCount * 0.38 + 0.4;
 
-    // --- HRTF 3D Panner --- positions the whisper in 3D space around the listener
+    // ── LAYER 1: HRTF 3D atmosphere (directional breath/hiss) ───────────────
     const panner = ctx.createPanner();
     panner.panningModel = 'HRTF';
     panner.distanceModel = 'inverse';
     panner.refDistance = 1;
     panner.maxDistance = 10000;
-    panner.rolloffFactor = 0.01; // minimal distance rolloff (same volume anywhere)
+    panner.rolloffFactor = 0.01;
     panner.coneInnerAngle = 360;
     panner.coneOuterAngle = 0;
     panner.coneOuterGain = 0;
-    // Scale up so HRTF effect is clearly audible
     panner.setPosition(pos.x * 4, pos.y * 2, pos.z * 4);
 
-    // Set listener position at origin, facing forward (+Z direction)
     if (ctx.listener.positionX) {
       ctx.listener.positionX.setValueAtTime(0, now);
       ctx.listener.positionY.setValueAtTime(0, now);
@@ -1705,79 +1726,54 @@
       ctx.listener.upZ.setValueAtTime(0, now);
     }
 
-    // Overall whisper gain
     const masterGain = ctx.createGain();
-    masterGain.gain.setValueAtTime(0.0001, now);
-    masterGain.gain.linearRampToValueAtTime(0.55, now + 0.05);
+    masterGain.gain.setValueAtTime(0.8, now);
     masterGain.connect(panner);
     panner.connect(ctx.destination);
 
-    // --- Synthesize whisper via syllable noise bursts ---
-    let t = now + 0.06;
-    taunt.syllables.forEach((dur, i) => {
-      const syllableSize = Math.ceil(ctx.sampleRate * (dur + 0.04));
-      const syllableBuf = ctx.createBuffer(1, syllableSize, ctx.sampleRate);
-      const sd = syllableBuf.getChannelData(0);
-      for (let j = 0; j < syllableSize; j++) {
-        // White noise
-        sd[j] = (Math.random() * 2 - 1);
-      }
-      const noiseSource = ctx.createBufferSource();
-      noiseSource.buffer = syllableBuf;
+    // Cold breath hiss
+    const hissSize = Math.ceil(ctx.sampleRate * totalDur);
+    const hissBuf = ctx.createBuffer(1, hissSize, ctx.sampleRate);
+    const hd = hissBuf.getChannelData(0);
+    for (let j = 0; j < hissSize; j++) hd[j] = (Math.random() * 2 - 1);
+    const hissSource = ctx.createBufferSource();
+    hissSource.buffer = hissBuf;
+    const hissHp = ctx.createBiquadFilter();
+    hissHp.type = 'highpass';
+    hissHp.frequency.setValueAtTime(3800, now);
+    const hissGain = ctx.createGain();
+    hissGain.gain.setValueAtTime(0.0001, now);
+    hissGain.gain.linearRampToValueAtTime(0.35, now + 0.12);
+    hissGain.gain.exponentialRampToValueAtTime(0.0001, now + totalDur);
+    hissSource.connect(hissHp).connect(hissGain).connect(masterGain);
+    hissSource.start(now);
+    hissSource.stop(now + totalDur + 0.05);
 
-      // Formant filter cluster — creates vowel-like resonance
-      const f1 = ctx.createBiquadFilter(); // First formant (throat)
-      f1.type = 'bandpass';
-      f1.frequency.setValueAtTime(800 + Math.random() * 400, t);
-      f1.Q.setValueAtTime(8 + Math.random() * 6, t);
+    // Sub rumble (body presence)
+    const rumbleOsc = ctx.createOscillator();
+    rumbleOsc.type = 'sine';
+    rumbleOsc.frequency.setValueAtTime(55 + Math.random() * 20, now);
+    const rumbleGain = ctx.createGain();
+    rumbleGain.gain.setValueAtTime(0.0001, now);
+    rumbleGain.gain.linearRampToValueAtTime(0.18, now + 0.08);
+    rumbleGain.gain.exponentialRampToValueAtTime(0.0001, now + totalDur);
+    rumbleOsc.connect(rumbleGain).connect(masterGain);
+    rumbleOsc.start(now);
+    rumbleOsc.stop(now + totalDur + 0.05);
 
-      const f2 = ctx.createBiquadFilter(); // Second formant (mouth)
-      f2.type = 'bandpass';
-      f2.frequency.setValueAtTime(1800 + Math.random() * 800, t);
-      f2.Q.setValueAtTime(10 + Math.random() * 8, t);
-
-      const highShelf = ctx.createBiquadFilter(); // Breathiness
-      highShelf.type = 'highshelf';
-      highShelf.frequency.setValueAtTime(4000, t);
-      highShelf.gain.setValueAtTime(6, t);
-
-      // Syllable amplitude envelope (swell + decay)
-      const syllableGain = ctx.createGain();
-      syllableGain.gain.setValueAtTime(0.0001, t);
-      syllableGain.gain.linearRampToValueAtTime(0.85, t + dur * 0.3);
-      syllableGain.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.03);
-
-      // Mix f1, f2 separately then merge
-      noiseSource.connect(f1);
-      noiseSource.connect(f2);
-      noiseSource.connect(highShelf);
-
-      f1.connect(syllableGain);
-      f2.connect(syllableGain);
-      highShelf.connect(syllableGain);
-      syllableGain.connect(masterGain);
-
-      noiseSource.start(t);
-      noiseSource.stop(t + dur + 0.06);
-
-      t += dur + 0.04 + Math.random() * 0.05; // slight timing jitter between syllables
-    });
-
-    // Eerie pitch oscillator underneath — barely audible, adds coldness
-    const eerieOsc = ctx.createOscillator();
-    eerieOsc.type = 'sine';
-    eerieOsc.frequency.setValueAtTime(140 + Math.random() * 60, now);
-    eerieOsc.frequency.linearRampToValueAtTime(80 + Math.random() * 40, t);
-    const eerieGain = ctx.createGain();
-    eerieGain.gain.setValueAtTime(0.04, now);
-    eerieGain.gain.exponentialRampToValueAtTime(0.0001, t);
-    eerieOsc.connect(eerieGain).connect(masterGain);
-    eerieOsc.start(now);
-    eerieOsc.stop(t + 0.1);
-
-    // Fade out master at the end
-    masterGain.gain.setValueAtTime(0.55, t - 0.05);
-    masterGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    // ── LAYER 2: Web Speech API — actual intelligible words ──────────────────
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(taunt.text);
+      utter.rate   = 0.55;  // very slow — drawn-out
+      utter.pitch  = 0.05;  // as low as possible — deep, inhuman
+      utter.volume = 0.80;  // clearly audible
+      const voice = getGhostVoice();
+      if (voice) utter.voice = voice;
+      setTimeout(() => {
+        if (!gameOver && gameStarted) window.speechSynthesis.speak(utter);
+      }, 80);
+    }
   }
 
   function handleGhostTaunts() {
@@ -1790,21 +1786,20 @@
 
     playGhostWhisper(taunt, pos);
 
-    // Show a faint subtitle hint about the direction (italic, dim, short)
     const dirHints = {
-      'directly behind':       '...something breathes right behind you...',
-      'diagonal left-behind':  '...a whisper from the left...',
-      'diagonal right-behind': '...a whisper from the right...',
-      'hard left':             '...it\'s to your left...',
-      'hard right':            '...it\'s to your right...',
-      'upper left-behind':     '...above and to the left...',
-      'upper right-behind':    '...above and to the right...'
+      'directly behind':       `"${taunt.text}" — right behind you!`,
+      'diagonal left-behind':  `"${taunt.text}" — from the left...`,
+      'diagonal right-behind': `"${taunt.text}" — from the right...`,
+      'hard left':             `"${taunt.text}" — your left!`,
+      'hard right':            `"${taunt.text}" — your right!`,
+      'upper left-behind':     `"${taunt.text}" — above and left...`,
+      'upper right-behind':    `"${taunt.text}" — above and right...`
     };
-    showSubtitle(dirHints[pos.label] || '...', 3000, false);
+    showSubtitle(dirHints[pos.label] || `"${taunt.text}"`, 4500, false);
 
-    // Next taunt: 18–35 seconds (gets more frequent as time runs out)
+    // Next taunt: 12–25 seconds (accelerates as time runs low)
     const urgencyFactor = Math.max(0.4, timeLeft / TOTAL_TIME);
-    ghostTauntTimer = nowCtx + (18 + Math.random() * 17) * urgencyFactor;
+    ghostTauntTimer = nowCtx + (12 + Math.random() * 13) * urgencyFactor;
   }
 
   function handleHeartbeat() {
